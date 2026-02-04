@@ -160,12 +160,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
         </form>
     </div>
 
+    <div id="bulk-actions-panel" class="mb-3 d-none animate__animated animate__fadeIn">
+        <div class="alert alert-warning border-0 shadow-sm d-flex justify-content-between align-items-center py-2">
+            <span><strong id="selected-count">0</strong> itens selecionados</span>
+            <button class="btn btn-warning btn-sm fw-bold" onclick="abrirEdicaoLote()">
+                <i class="fas fa-layer-group me-2"></i> ALTERAR CATEGORIA EM LOTE
+            </button>
+        </div>
+    </div>
+
     <div class="card overflow-hidden">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">Cód.</th>
+                        <th class="ps-4" style="width: 40px;">
+                            <input type="checkbox" id="check-all" class="form-check-input">
+                        </th>
+                        <th>Cód.</th>
                         <th>Descrição</th>
                         <th>Unid. / Tipo</th>
                         <th>Categoria</th>
@@ -176,13 +188,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
                 <tbody>
                     <?php while($p = $lista_produtos->fetch_assoc()): ?>
                     <tr>
-                        <td class="ps-4"><code><?= $p['codigo_referencia'] ?></code></td>
+                        <td class="ps-4">
+                            <input type="checkbox" class="form-check-input product-checkbox" value="<?= $p['id'] ?>">
+                        </td>
+                        <td><code><?= $p['codigo_referencia'] ?></code></td>
                         <td><strong><?= $p['descricao'] ?></strong></td>
-                        <td><small class="text-muted d-block"><?= $p['tipo_produto'] ?></small><span class="badge bg-light text-dark border"><?= $p['unidade_medida'] ?></span></td>
+                        <td>
+                            <small class="text-muted d-block"><?= $p['tipo_produto'] ?></small>
+                            <span class="badge bg-light text-dark border"><?= $p['unidade_medida'] ?></span>
+                        </td>
                         <td><span class="badge bg-info-subtle text-info border"><?= $p['categoria'] ?></span></td>
                         <td class="text-center">
                             <?php $est = $p['estoque_total'] ?? 0; ?>
-                            <span class="<?= ($est <= $p['estoque_minimo']) ? 'text-danger fw-bold' : '' ?>"><?= number_format($est, 0) ?></span>
+                            <span class="<?= ($est <= $p['estoque_minimo']) ? 'text-danger fw-bold' : '' ?>">
+                                <?= number_format($est, 0) ?>
+                            </span>
                         </td>
                         <td class="text-center">
                             <button class="btn btn-sm btn-outline-primary px-3" onclick='abrirAcoes(<?= json_encode($p) ?>)'>
@@ -322,6 +342,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+$(document).ready(function() {
+    // 1. Lógica para aparecer/sumir o painel de ações em lote
+    $(document).on('change', '#check-all, .product-checkbox', function() {
+        if ($('#check-all').is(':focus')) {
+            $('.product-checkbox').prop('checked', $('#check-all').prop('checked'));
+        }
+        
+        const selecionados = $('.product-checkbox:checked').length;
+        $('#selected-count').text(selecionados);
+        
+        if (selecionados > 0) {
+            $('#bulk-actions-panel').removeClass('d-none');
+        } else {
+            $('#bulk-actions-panel').addClass('d-none');
+        }
+    });
+});
+
 function abrirAcoes(p) {
     document.getElementById('edit_id').value = p.id;
     document.getElementById('edit_ref').value = p.codigo_referencia;
@@ -334,6 +372,56 @@ function abrirAcoes(p) {
     document.getElementById('view_est').innerText = p.estoque_total || 0;
     new bootstrap.Modal(document.getElementById('modalAcoes')).show();
 }
+
+// 2. Nome da função corrigido para bater com o botão do HTML
+function abrirEdicaoLote() {
+    const selecionados = $('.product-checkbox:checked').map(function() { return $(this).val(); }).get();
+    
+    if (selecionados.length === 0) {
+        return Swal.fire('Aviso', 'Selecione ao menos um produto!', 'warning');
+    }
+
+    Swal.fire({
+        title: 'Alterar Categoria em Lote',
+        text: `Alterando ${selecionados.length} produtos.`,
+        input: 'select',
+        inputOptions: {
+            'OPERACIONAL': 'OPERACIONAL',
+            'ESCRITÓRIO ADM': 'ESCRITÓRIO ADM',
+            'CONSERVAÇÃO': 'CONSERVAÇÃO',
+            'ALIMENTOS': 'ALIMENTOS',
+            'MANUTENÇÃO': 'MANUTENÇÃO' // Adicionado conforme sua solicitação
+        },
+        inputPlaceholder: 'Selecione a nova categoria...',
+        showCancelButton: true,
+        confirmButtonText: 'Atualizar Tudo',
+        confirmButtonColor: '#254c90',
+        cancelButtonText: 'Cancelar',
+        // O segredo está aqui: o preConfirm valida se algo foi escolhido
+        preConfirm: (valorSelecionado) => {
+            if (!valorSelecionado) {
+                Swal.showValidationMessage('Você precisa selecionar uma categoria');
+                return false;
+            }
+            return valorSelecionado;
+        }
+    }).then((result) => {
+        // Se o usuário confirmou e escolheu um valor
+        if (result.isConfirmed && result.value) {
+            $.post('api/bulk_update_category.php', {
+                ids: selecionados,
+                categoria: result.value // Aqui o valor selecionado (ex: MANUTENÇÃO) é enviado
+            }, function(res) {
+                if(res.success) {
+                    Swal.fire('Sucesso!', 'Categorias atualizadas.', 'success').then(() => location.reload());
+                } else {
+                    Swal.fire('Erro', 'Falha ao atualizar no banco de dados.', 'error');
+                }
+            }, 'json');
+        }
+    });
+}
+
 </script>
 
 <?php if(isset($_GET['msg'])): ?>
