@@ -72,7 +72,6 @@
             box-shadow: 0 4px 10px rgba(30, 60, 114, 0.3);
         }
 
-        /* Ajuste fino para Select2 com fundo branco */
         .select2-container--bootstrap-5 .select2-selection {
             border: none !important;
             background: transparent !important;
@@ -94,7 +93,8 @@
             <div class="row mb-4">
                 <div class="col-md-6">
                     <label class="form-label fw-bold"><i class="fas fa-user me-1"></i> SOLICITANTE</label>
-                    <input type="text" name="solicitante" class="form-control" placeholder="Seu nome completo" required>
+                    <input type="text" name="solicitante" id="solicitante" class="form-control" 
+                           placeholder="Nome e Sobrenome" required minlength="6" maxlength="60">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-bold"><i class="fas fa-building me-1"></i> SETOR</label>
@@ -130,7 +130,7 @@
                         </select>
                     </div>
                     <div class="col-3">
-                        <input type="number" name="item_qtd[]" class="form-control border-0 shadow-none text-center" placeholder="Qtd" required>
+                        <input type="number" name="item_qtd[]" class="form-control border-0 shadow-none text-center" placeholder="Qtd" required min="1">
                     </div>
                     <div class="col-1 text-end">
                         <button type="button" class="btn btn-link text-danger p-0" onclick="removerLinha(this)"><i class="fas fa-trash-alt"></i></button>
@@ -153,20 +153,18 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
-        // Função para inicializar o buscador no catálogo
         function inicializarSelect2() {
             $('.busca-produto-catalogo').select2({
                 theme: 'bootstrap-5',
                 placeholder: 'Procure o material...',
                 minimumInputLength: 1,
                 ajax: {
-                    url: 'api/search_products.php', // Reutiliza sua API de busca
+                    url: 'api/search_products.php',
                     dataType: 'json',
                     delay: 250,
                     processResults: function (data) {
                         return {
                             results: data.map(function (item) {
-                                // Mapeia para o formato que o Select2 exige
                                 return { id: item.text, text: item.text };
                             })
                         };
@@ -185,7 +183,7 @@
                     </select>
                 </div>
                 <div class="col-3">
-                    <input type="number" name="item_qtd[]" class="form-control border-0 shadow-none text-center" placeholder="Qtd" required>
+                    <input type="number" name="item_qtd[]" class="form-control border-0 shadow-none text-center" placeholder="Qtd" required min="1">
                 </div>
                 <div class="col-1 text-end">
                     <button type="button" class="btn btn-link text-danger p-0" onclick="removerLinha(this)"><i class="fas fa-trash-alt"></i></button>
@@ -201,10 +199,29 @@
 
         $(document).ready(function() {
             inicializarSelect2();
+
+            // TRAVA EM TEMPO REAL: Bloqueia números e símbolos no nome
+            $('#solicitante').on('input', function() {
+                this.value = this.value.replace(/[^a-zA-ZÀ-ÿ\s]/g, "");
+            });
         });
 
         $('#formPublico').on('submit', function(e) {
             e.preventDefault();
+
+            // TRAVA DE ENVIO: Valida Nome e Sobrenome
+            const nomeValor = $('#solicitante').val().trim();
+            const partesNome = nomeValor.split(/\s+/);
+            if (partesNome.length < 2) {
+                Swal.fire({
+                    title: 'Nome Incompleto',
+                    text: 'Por favor, digite seu nome e pelo menos um sobrenome.',
+                    icon: 'warning',
+                    confirmButtonColor: '#1e3c72'
+                });
+                return false;
+            }
+
             const btn = $(this).find('button[type="submit"]');
             btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> ENVIANDO...');
 
