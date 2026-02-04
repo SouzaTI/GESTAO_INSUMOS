@@ -2,7 +2,7 @@
 require_once __DIR__ . '/config/db.php';
 if (!isset($_SESSION['usuario_id'])) { header("Location: login.php"); exit(); }
 
-// Busca apenas as requisições novas
+// Busca apenas as requisições novas para evitar duplicidade de trabalho
 $requisicoes = $conn->query("SELECT * FROM requisicoes_externas WHERE status = 'NOVA' ORDER BY data_envio DESC");
 ?>
 <!DOCTYPE html>
@@ -62,7 +62,9 @@ $requisicoes = $conn->query("SELECT * FROM requisicoes_externas WHERE status = '
                     </div>
                     
                     <div class="d-flex gap-2">
-                        <a href="registrar.php?req_id=<?= $req['id'] ?>" class="btn btn-success btn-sm w-100 fw-bold">
+                        <a href="javascript:void(0)" 
+                        onclick="processarEIr(<?= $req['id'] ?>)" 
+                        class="btn btn-success btn-sm w-100 fw-bold">
                             <i class="fas fa-shopping-cart me-1"></i> INICIAR COMPRA
                         </a>
                         <button onclick="descartarReq(<?= $req['id'] ?>)" class="btn btn-outline-danger btn-sm" title="Descartar">
@@ -83,6 +85,7 @@ $requisicoes = $conn->query("SELECT * FROM requisicoes_externas WHERE status = '
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+
 function descartarReq(id) {
     Swal.fire({
         title: 'Descartar Requisição?',
@@ -104,6 +107,14 @@ function descartarReq(id) {
                 }
             }, 'json');
         }
+    });
+}
+
+function processarEIr(id) {
+    // 1. Mudamos o status via API primeiro
+    $.post('api/status_requisicao.php', {id: id, status: 'EM PROCESSAMENTO'}, function(res) {
+        // 2. Somente após a confirmação do banco, redirecionamos
+        window.location.href = 'registrar.php?req_id=' + id;
     });
 }
 </script>

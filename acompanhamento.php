@@ -267,11 +267,21 @@ function escolherOpcao(opcaoId, pedidoId) {
 }
 
 function abrirModalComplementar(id) {
-    $('#comp_pedido_id').val(id);
-    $('#comp_cnpj, #comp_pix_fav, #comp_pix_chave, #comp_parcela_texto').val('');
-    $('#comp_pgto').val('dinheiro').trigger('change');
-    $('#comp_parcelas').val('A Vista').trigger('change');
-    $('#modalComplementar').modal('show');
+    $.get('api/get_pedido_info.php', { id: id }, function(p) {
+        $('#comp_pedido_id').val(id);
+        
+        // Limpa resumos anteriores e insere o novo cabeçalho informativo
+        $('#modalComplementar .info-resumo').remove();
+        const cabecalho = `
+            <div class="info-resumo alert alert-primary py-2 mb-3 small d-flex justify-content-between">
+                <span><strong>PEDIDO:</strong> #${p.id}</span>
+                <span><strong>FORNECEDOR:</strong> ${p.fornecedor}</span>
+                <span><strong>VALOR:</strong> R$ ${parseFloat(p.valor_total).toLocaleString('pt-br',{minimumFractionDigits:2})}</span>
+            </div>`;
+        
+        $('#modalComplementar .modal-body').prepend(cabecalho);
+        $('#modalComplementar').modal('show');
+    }, 'json');
 }
 
 function salvarComplemento() {

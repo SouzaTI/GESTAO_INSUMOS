@@ -7,8 +7,10 @@
     <title>Requisição de Materiais - Gestão Digital</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
     <style>
-        /* Fundo com Degradê Azul Profissional */
         body { 
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
             min-height: 100vh;
@@ -19,7 +21,6 @@
             padding: 20px;
         }
 
-        /* Container Flutuante com efeito Glassmorphism */
         .form-container { 
             max-width: 650px; 
             width: 100%;
@@ -41,7 +42,6 @@
             margin: 0 auto 15px;
         }
 
-        /* Estilização das linhas de itens */
         .item-linha { 
             background: #f8f9fc; 
             padding: 12px; 
@@ -71,6 +71,12 @@
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(30, 60, 114, 0.3);
         }
+
+        /* Ajuste fino para Select2 com fundo branco */
+        .select2-container--bootstrap-5 .select2-selection {
+            border: none !important;
+            background: transparent !important;
+        }
     </style>
 </head>
 <body>
@@ -94,22 +100,34 @@
                     <label class="form-label fw-bold"><i class="fas fa-building me-1"></i> SETOR</label>
                     <select name="setor" class="form-select" required>
                         <option value="">Selecione...</option>
-                        <option value="Conservação">Limpeza / Conservação</option>
-                        <option value="Operacional">Operacional / Frota</option>
-                        <option value="Administrativo">Administrativo</option>
-                        <option value="TI">T.I / Suporte</option>
+                        <option value="Conservação">CONSERVAÇÃO</option>
+                        <option value="Cadastro">CADASTRO</option>
+                        <option value="Compras">COMPRAS</option>
+                        <option value="Faturamento">FATURAMENTO</option>                        
+                        <option value="Transporte">TRANSPORTE</option>
+                        <option value="Marketing">MARKETING</option>
+                        <option value="RH">RH</option>                        
+                        <option value="Carregamento">CARREGAMENTO</option>
+                        <option value="Logística">LOGÍSTICA</option>
+                        <option value="Televendas">TELEVENDAS</option>                        
+                        <option value="Facilities & T.I">FACILITIES & T.I</option>
+                        <option value="Fiscal">FISCAL</option>                        
+                        <option value="Manutenção">MANUTENÇÃO</option>
+                        <option value="Recebimento">RECEBIMENTO</option>
                     </select>
                 </div>
             </div>
 
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <label class="form-label fw-bold m-0"><i class="fas fa-box-open me-1"></i> ITENS DA REQUISIÇÃO</label>
+                <label class="form-label fw-bold m-0"><i class="fas fa-box-open me-1"></i> ITENS DO CATÁLOGO</label>
             </div>
             
             <div id="lista_itens">
                 <div class="row g-2 item-linha align-items-center">
                     <div class="col-8">
-                        <input type="text" name="item_nome[]" class="form-control border-0 shadow-none" placeholder="O que você precisa?" required>
+                        <select name="item_nome[]" class="form-select busca-produto-catalogo" required>
+                            <option value="">Pesquise o produto...</option>
+                        </select>
                     </div>
                     <div class="col-3">
                         <input type="number" name="item_qtd[]" class="form-control border-0 shadow-none text-center" placeholder="Qtd" required>
@@ -124,27 +142,66 @@
                 <i class="fas fa-plus-circle me-1"></i> Adicionar outro produto
             </button>
 
-            <button type="submit" class="btn btn-primary btn-submit w-100">
+            <button type="submit" class="btn btn-primary btn-submit w-100 mt-4">
                 <i class="fas fa-paper-plane me-2"></i> ENVIAR PEDIDO AO COMPRADOR
             </button>
         </form>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <script>
+        // Função para inicializar o buscador no catálogo
+        function inicializarSelect2() {
+            $('.busca-produto-catalogo').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Procure o material...',
+                minimumInputLength: 1,
+                ajax: {
+                    url: 'api/search_products.php', // Reutiliza sua API de busca
+                    dataType: 'json',
+                    delay: 250,
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function (item) {
+                                // Mapeia para o formato que o Select2 exige
+                                return { id: item.text, text: item.text };
+                            })
+                        };
+                    },
+                    cache: true
+                }
+            });
+        }
+
         function adicionarLinha() {
-            const html = `<div class="row g-2 item-linha align-items-center animate__animated animate__fadeInUp">
-                <div class="col-8"><input type="text" name="item_nome[]" class="form-control border-0 shadow-none" placeholder="O que você precisa?" required></div>
-                <div class="col-3"><input type="number" name="item_qtd[]" class="form-control border-0 shadow-none text-center" placeholder="Qtd" required></div>
-                <div class="col-1 text-end"><button type="button" class="btn btn-link text-danger p-0" onclick="removerLinha(this)"><i class="fas fa-trash-alt"></i></button></div>
+            const html = `
+            <div class="row g-2 item-linha align-items-center animate__animated animate__fadeInUp">
+                <div class="col-8">
+                    <select name="item_nome[]" class="form-select busca-produto-catalogo" required>
+                        <option value="">Pesquise o produto...</option>
+                    </select>
+                </div>
+                <div class="col-3">
+                    <input type="number" name="item_qtd[]" class="form-control border-0 shadow-none text-center" placeholder="Qtd" required>
+                </div>
+                <div class="col-1 text-end">
+                    <button type="button" class="btn btn-link text-danger p-0" onclick="removerLinha(this)"><i class="fas fa-trash-alt"></i></button>
+                </div>
             </div>`;
             $('#lista_itens').append(html);
+            inicializarSelect2();
         }
         
         function removerLinha(btn) { 
             if($('.item-linha').length > 1) $(btn).closest('.item-linha').fadeOut(300, function(){ $(this).remove(); }); 
         }
+
+        $(document).ready(function() {
+            inicializarSelect2();
+        });
 
         $('#formPublico').on('submit', function(e) {
             e.preventDefault();
@@ -157,7 +214,7 @@
                         title: 'Enviado com Sucesso!',
                         text: 'O comprador já recebeu sua solicitação.',
                         icon: 'success',
-                        confirmButtonColor: '#4e73df'
+                        confirmButtonColor: '#1e3c72'
                     }).then(() => location.reload());
                 } else {
                     Swal.fire('Atenção', res.message, 'warning');

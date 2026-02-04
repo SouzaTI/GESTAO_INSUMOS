@@ -15,15 +15,15 @@ $nivel_usuario = $_SESSION['usuario_nivel'] ?? 'user';
 // Consolidado: Estoque Total e Quantidade de Alertas de Validade
 $stats = $conn->query("SELECT 
     SUM(quantidade_atual) as total_estoque,
-    COUNT(DISTINCT CASE WHEN data_validade <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN produto_id END) as alertas_validade
-    FROM lotes WHERE quantidade_atual > 0")->fetch_assoc();
+    COUNT(DISTINCT CASE WHEN data_validade <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) AND quantidade_atual > 0 THEN produto_id END) as alertas_validade
+    FROM lotes")->fetch_assoc();
 
 // Consumo do Mês Atual (Saídas registradas)
-$sql_consumo = "SELECT SUM(quantidade) as total 
-                FROM movimentacoes 
-                WHERE tipo = 'saida' 
-                AND MONTH(data_registro) = MONTH(CURRENT_DATE()) 
-                AND YEAR(data_registro) = YEAR(CURRENT_DATE())";
+$sql_consumo = "SELECT ABS(SUM(quantidade_atual)) as total 
+                FROM lotes 
+                WHERE quantidade_atual < 0 
+                AND MONTH(data_entrada) = MONTH(CURRENT_DATE()) 
+                AND YEAR(data_entrada) = YEAR(CURRENT_DATE())";
 $total_consumo = $conn->query($sql_consumo)->fetch_assoc()['total'] ?? 0;
 
 // KPI de Eficiência: Tempo Médio de Atendimento de Compras (em minutos)
@@ -79,13 +79,15 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
     </header>
 
     <div class="row g-4 mb-5">
-        <div class="col-md-3">
+        <div class="col-md-3" style="cursor: pointer;" onclick="abrirEstoqueCritico()">
             <div class="card card-kpi p-4 shadow-sm">
                 <div class="d-flex align-items-center">
                     <div class="icon-box bg-primary-subtle text-primary me-3"><i class="fas fa-boxes-stacked"></i></div>
                     <div>
                         <small class="text-muted fw-bold">ESTOQUE FÍSICO</small>
-                        <h3 class="mb-0 fw-bold"><?php echo number_format($stats['total_estoque'] ?? 0, 0, ',', '.'); ?></h3>
+                        <h3 class="mb-0 fw-bold <?php echo ($stats['total_estoque'] < 0) ? 'text-danger' : ''; ?>">
+                            <?php echo number_format($stats['total_estoque'] ?? 0, 0, ',', '.'); ?>
+                        </h3>
                     </div>
                 </div>
             </div>
@@ -169,8 +171,47 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
             </table>
         </div>
     </div>
+
+    <div class="modal fade" id="modalCritico" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-exclamation-circle me-2"></i>Itens com Estoque Esgotado</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <table class="table table-sm">
+                        <thead><tr><th>Produto</th><th class="text-end">Saldo Atual</th></tr></thead>
+                        <tbody id="lista_negativa"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+    function abrirEstoqueCritico() {
+        $.get('api/get_estoque_critico.php', function(dados) {
+            let h = '';
+            dados.forEach(item => {
+                h += `<tr>
+                        <td>${item.descricao}</td>
+                        <td class="text-end text-danger fw-bold">${item.saldo}</td>
+                      </tr>`;
+            });
+            if(dados.length === 0) h = '<tr><td colspan="2" class="text-center">Nenhum item negativo.</td></tr>';
+            $('#lista_negativa').html(h);
+            $('#modalCritico').modal('show');
+        });
+    }
+    </script>
+</body>
+</html>
 </body>
 </html>

@@ -20,7 +20,7 @@ $perm = json_decode($user_data['privilegios'] ?? '{}', true);
 $pode_comprar = isset($perm['comprar']) && $perm['comprar'] == true;
 $pode_estoque = isset($perm['estoque']) && $perm['estoque'] == true;
 $pode_ver_financeiro = isset($perm['financeiro']) && $perm['financeiro'] == true;
-$query_aprovadores = $conn->query("SELECT nome FROM usuarios ORDER BY nome ASC");
+// Query de aprovadores removida para usar a lista fixa solicitada
 ?>
 
 <!DOCTYPE html>
@@ -72,6 +72,8 @@ $query_aprovadores = $conn->query("SELECT nome FROM usuarios ORDER BY nome ASC")
     </div>
 
     <div id="container_formulario" class="d-none">
+        <input type="hidden" id="master_req_id" value="<?= $req_id ?>">
+
         <div class="card p-4 mb-4 shadow-sm border-start border-4" id="header_card">
             <h5 class="section-header" id="header_titulo"></h5>
             
@@ -146,9 +148,10 @@ $query_aprovadores = $conn->query("SELECT nome FROM usuarios ORDER BY nome ASC")
                     <label class="form-label fw-bold small">Quem Aprovou?</label>
                     <select id="master_aprovador" class="form-select">
                         <option value="">Selecione o Gestor...</option>
-                        <?php while($user = $query_aprovadores->fetch_assoc()): ?>
-                            <option value="<?= $user['nome'] ?>"><?= $user['nome'] ?></option>
-                        <?php endwhile; ?>
+                        <option value="DIRETORIA">FÁBIO</option>
+                        <option value="GERÊNCIA">ANDERSON</option>
+                        <option value="COORDENAÇÃO">ADELSON</option>
+                        <option value="ADMINISTRAÇÃO">ALEX</option>
                     </select>
                 </div>
             </div>
@@ -182,7 +185,7 @@ $query_aprovadores = $conn->query("SELECT nome FROM usuarios ORDER BY nome ASC")
                 <div class="col-md-4">
                     <label class="form-label fw-bold small">Produto no Catálogo</label>
                     <div class="input-group">
-                        <select id="busca_produto" class="form-control"></select>
+                        <select id="busca_produto" class="form-control" style="width: 85%"></select>
                         <button class="btn btn-primary px-3" type="button" onclick="novoInsumoManual()" title="Digitar novo item manual"><i class="fas fa-keyboard"></i></button>
                     </div>
                 </div>
@@ -290,6 +293,77 @@ let modoAtual = '';
 let listaItens = [];
 let cotacoesTemporarias = [];
 
+// Inicialização de máscaras e Select2
+$(document).ready(function() {
+    $('#master_cnpj').mask('00.000.000/0000-00');
+    $('.moeda, .mascara-moeda').mask('#.##0,00', {reverse: true});
+    
+    // Inicializa Select2 para o catálogo
+    $('#busca_produto').select2({
+        ajax: { 
+            url: 'api/search_products.php', 
+            dataType: 'json', 
+            delay: 250, 
+            processResults: d => ({ results: d }), 
+            cache: true 
+        },
+        placeholder: 'Pesquise o produto no catálogo...',
+        minimumInputLength: 1,
+        width: 'resolve'
+    });
+
+    // --- LÓGICA DE IMPORTAÇÃO AUTOMÁTICA DE ITENS (VÍNCULO REAL COM CATÁLOGO) ---
+<?php if ($req_id && $req_dados): ?>
+    const dadosReq = <?= json_encode($req_dados) ?>;
+    setModo('compra');
+    $('#m_tipo_compra').val('interno').trigger('change');
+    $('#master_solicitante').val(dadosReq.solicitante);
+
+    const linhas = dadosReq.descricao_itens.split('\n');
+    
+    // Filtramos linhas vazias para não gerar buscas desnecessárias
+    const buscas = linhas.filter(l => l.trim() !== '').map(linha => {
+        const match = linha.match(/- \((\d+)\) (.*)/);
+        if(match) {
+            const qtd = match[1];
+            const nomeCompleto = match[2].trim();
+
+            // Identifica se o nome começa com o código (ex: "52743 - ACUCAR")
+            const extrairCodigo = nomeCompleto.match(/^(\d+) -/);
+            const termoBusca = extrairCodigo ? extrairCodigo[1] : nomeCompleto;
+
+            // Busca o ID real para unificar o estoque
+            return $.get('api/get_product_by_name_or_code.php', { busca: termoBusca }, function(prod) {
+                listaItens.push({
+                    id: prod.id || 0, 
+                    nome: prod.descricao || nomeCompleto, // Usa nome do catálogo se achar
+                    qtd: qtd,
+                    unid: prod.unidade_medida || 'UN',
+                    lote: '',
+                    obs: 'Importado da Requisição #' + dadosReq.id,
+                    valor_unit: 0,
+                    subtotal: 0,
+                    cotacoes: []
+                });
+            }, 'json');
+        }
+    });
+
+    // Garante que a tabela só renderize após TODAS as consultas ao banco terminarem
+    $.when.apply($, buscas).then(function() {
+        renderTabela();
+        atualizarTotalCabeçalho();
+        Swal.fire({
+            title: 'Requisição Importada!',
+            text: 'Os itens foram vinculados ao seu estoque oficial.',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    });
+<?php endif; ?>
+});
+
 function togglePainelPix() {
     const pgto = $('#master_pgto').val();
     if(pgto === 'pix') {
@@ -326,13 +400,12 @@ function setModo(modo) {
 
 function ajustarCamposCompra() {
     const tipo = $('#m_tipo_compra').val();
-    
     if(tipo === 'cotacao') {
-        $('.div-externo').hide(); // Esconde CNPJ, Fornecedor Master, Pagamento
-        $('#div_btn_cotacao').show(); // Mostra apenas o botão de lançar os orçamentos
+        $('.div-externo').hide(); 
+        $('#div_btn_cotacao').show(); 
         $('#div_valor_direto').hide();
     } else if(tipo === 'externo') {
-        $('.div-externo').show(); // Mostra tudo para fechar o pedido na hora
+        $('.div-externo').show(); 
         $('#div_btn_cotacao').hide(); 
         $('#div_valor_direto').show();
     } else {
@@ -341,6 +414,7 @@ function ajustarCamposCompra() {
         $('#div_valor_direto').show();
     }
 }
+
 function ajustarCamposEstoque() {
     const tipo = $('#master_tipo_estoque').val();
     const destino = $('#master_destino_estoque').val();
@@ -376,93 +450,38 @@ function renderCotacoesTemporarias() {
     $('#count_cotacoes').text(cotacoesTemporarias.length);
 }
 
-$(document).ready(function() {
-    $('#master_cnpj').mask('00.000.000/0000-00');
-    $('.moeda, .mascara-moeda').mask('#.##0,00', {reverse: true});
-    
-    // ATUALIZAÇÃO DO SELECT2 PARA SUPORTAR TAGS (ITENS MANUAIS)
-    $('#busca_produto').select2({
-        ajax: { 
-            url: 'api/search_products.php', 
-            dataType: 'json', 
-            delay: 250, 
-            processResults: d => ({ results: d }), 
-            cache: true 
-        },
-        placeholder: 'Pesquise ou Digite um novo item...',
-        minimumInputLength: 1,
-        tags: true, // Permite criar novas tags digitando
-        createTag: function (params) {
-            var term = $.trim(params.term);
-            if (term === '') return null;
-            return {
-                id: 'NOVO_' + term, // Identifica item novo para a API
-                text: term,
-                newTag: true
-            }
-        }
-    });
-
-    $('#busca_produto').on('select2:select', function (e) {
-        if(e.params.data.unid) $('#item_unidade').val(e.params.data.unid).trigger('change');
-    });
-
-    <?php if ($req_id && $req_dados): ?>
-        // Ativa o formulário de compra imediatamente
-        setModo('compra'); 
-        
-        // Mostra um aviso com a lista de itens que o setor pediu
-        Swal.fire({
-            title: 'Requisição Importada!',
-            html: `<div class="text-start small">
-                    <strong>Solicitante:</strong> <?= htmlspecialchars($req_dados['solicitante']) ?><br>
-                    <strong>Setor:</strong> <?= htmlspecialchars($req_dados['setor']) ?><br><hr>
-                    <strong>Itens Pedidos:</strong><br>
-                    <div class="bg-light p-2 mt-2" style="white-space: pre-wrap; font-family: monospace;"><?= addslashes($req_dados['descricao_itens']) ?></div>
-                </div>`,
-            icon: 'info',
-            confirmButtonText: 'Entendido'
-        });
-    <?php endif; ?>
-});
-
+// Correção para abrir o select manual
 function novoInsumoManual() {
     $('#busca_produto').val(null).trigger('change');
-    $('#busca_produto').select2('open'); // Foca no campo para digitar
+    if ($('#busca_produto').data('select2')) {
+        $('#busca_produto').select2('open');
+    }
 }
 
 function adicionarAoCarrinho() {
     const data = $('#busca_produto').select2('data')[0];
     const q = $('#item_qtd').val();
-    const tipoCompra = $('#m_tipo_compra').val(); // Captura se é cotacao, externo ou interno
+    const tipoCompra = $('#m_tipo_compra').val(); 
     
-    if(!data || q <= 0) return Swal.fire('Aviso', 'Selecione ou digite o produto e a quantidade', 'warning');
+    if(!data || q <= 0) return Swal.fire('Aviso', 'Selecione o produto e a quantidade', 'warning');
 
     let produtoNome = data.text.toUpperCase();
-    let produtoId = data.id.toString().includes('NOVO_') ? 0 : data.id;
+    let produtoId = (data.id && data.id.toString().includes('NOVO_')) ? 0 : (data.id || 0);
 
     let valor_ref = 0;
     let info_financeira = "";
 
-    // NOVA LÓGICA DE VALIDAÇÃO
     if(modoAtual === 'compra' && tipoCompra === 'cotacao') {
-        // Trava de cotação apenas para o modo de busca de preços
         if(cotacoesTemporarias.length === 0) {
             return Swal.fire('Atenção', 'Para o modo cotação, lance as opções de fornecedores primeiro.', 'warning');
         }
-        
-        // Usa o menor valor entre as cotações para o cálculo
         valor_ref = Math.min(...cotacoesTemporarias.map(c => parseFloat(c.valor.replace('.','').replace(',','.'))));
         info_financeira = `<span class="badge bg-primary">${cotacoesTemporarias.length} Cotações</span>`;
     } else {
-        // Para COMPRA DIRETA (externo), INTERNO ou ESTOQUE, usa o valor do campo "Valor Unitário"
         valor_ref = parseFloat($('#item_valor_unit').val().replace('.', '').replace(',', '.')) || 0;
-        
-        // Verifica se o valor foi preenchido em caso de compra direta
         if(modoAtual === 'compra' && tipoCompra === 'externo' && valor_ref <= 0) {
             return Swal.fire('Aviso', 'Insira o Valor Unitário para esta compra direta.', 'warning');
         }
-        
         info_financeira = "R$ " + ($('#item_valor_unit').val() || "0,00");
     }
 
@@ -504,18 +523,17 @@ function renderTabela() {
 
 function finalizarTudo() {
     if(listaItens.length === 0) return Swal.fire('Erro', 'Lista vazia!', 'error');
-
     const tipoCompra = $('#m_tipo_compra').val();
-    
-    // Lógica simples: Se for interno, define o fornecedor fixo, senão pega o do campo
     let fornecedorFinal = (tipoCompra === 'interno') ? 'COMERCIAL SOUZA ATACADO' : $('#master_fornecedor').val();
 
     const dados = {
         modo: modoAtual,
         cabecalho: {
+            req_id: $('#master_req_id').val(), // Envia o ID da requisição para finalizar o ciclo
             tipo_compra: tipoCompra,
             solicitante: $('#master_solicitante').val() || 'Administrador',
-            fornecedor: fornecedorFinal, // Aqui vai o nome automático ou o digitado
+            aprovador: $('#master_aprovador').val() || '', // Captura o gestor selecionado
+            fornecedor: fornecedorFinal, 
             cnpj: $('#master_cnpj').val() || '',
             pgto: $('#master_pgto').val() || '',
             pix_favorecido: $('#pix_favorecido').val() || '',
@@ -548,11 +566,7 @@ function calcularSubtotalItem() {
     const qtd = parseFloat($('#item_qtd').val()) || 0;
     const valorUnit = parseFloat($('#item_valor_unit').val().replace('.', '').replace(',', '.')) || 0;
     const subtotal = qtd * valorUnit;
-    
-    // Se você tiver um campo visual para mostrar o subtotal antes de adicionar, atualize-o aqui
-    console.log("Subtotal calculado: ", subtotal);
 }
-
 </script>
 </body>
 </html>

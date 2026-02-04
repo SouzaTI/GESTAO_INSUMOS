@@ -153,6 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
                     <option value="CONSERVAÇÃO">CONSERVAÇÃO</option>
                     <option value="PERFUMARIA E HIGIENE PESSOAL">PERFUMARIA</option>
                     <option value="ALIMENTOS">ALIMENTOS</option>
+                    <option value="MANUTENÇÃO">MANUTENÇÃO</option>
                 </select>
             </div>
             <div class="col-md-3"><button type="submit" class="btn btn-dark w-100"><i class="fas fa-filter me-2"></i>Filtrar</button></div>
