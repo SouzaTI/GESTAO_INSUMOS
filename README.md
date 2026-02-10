@@ -70,11 +70,40 @@ gestao_insumos/
 
 ## 📸 Capturas de Tela
 
-### 1. 🔐 Primeiro Acesso
+### 🔐 Segurança e Acesso
+* **LOGIN:** Interface de autenticação segura para usuários cadastrados.
+  ![LOGIN](img/LOGIN.png)
+* **PRIMEIRO ACESSO:** Fluxo obrigatório de redefinição de senha para novas contas.
+  ![PRIMEIRO_ACESSO](img/PRIMEIRO_ACESSO.png)
 
-### 2. 📊 Painel de Performance
+### 📊 Gestão Administrativa
+* **ABA PAINEL:** Dashboard estratégico com indicadores de estoque físico e alertas.
+  ![ABA_PAINEL](img/ABA_PAINEL.png)
+* **ABA PRODUTOS:** Gerenciamento completo do catálogo de insumos de uso e consumo.
+  ![ABA_PRODUTOS](img/ABA_PRODUTOS.png)
+* **CADASTRAR INSUMO:** Módulo para inclusão técnica de novos materiais no inventário.
+  ![CADASTRAR_INSUMO](img/CADASTRAR_INSUMO.png)
+
+### 🔄 Movimentações de Estoque
+* **ABA MOVIMENTAÇÃO:** Central para registro e controle de fluxos de materiais.
+  ![ABA_MOVIMENTAÇÃO](img/ABA_MOVIMENTAÇÃO.png)
+* **COMPRA EXTERNA:** Registro de entrada de insumos para abastecimento do estoque.
+  ![COMPRA_EXTERNA](img/COMPRA_EXTERNA.png)
+* **RETIRADA INTERNA:** Processo de saída de materiais para consumo dos setores.
+  ![RETIRADA_INTERNA](img/RETIRADA_INTERNA.png)
+* **COTAÇÃO:** Ferramenta para levantamento de preços sem impacto no saldo físico.
+  ![COTAÇÃO](img/COTAÇÃO.png)
+
+### 📩 Requisições e Monitoramento
+* **ABA REQUISIÇÕES EXTERNAS:** Gestão centralizada de pedidos recebidos via portal.
+  ![ABA_REQUISIÇÕES_EXTERNAS](img/ABA_REQUISIÇÕES_EXTERNAS.png)
+* **LINK PUBLICO:** Interface de solicitação digital (Solicitante, Setor e Itens).
+  ![LINK_PUBLICO](img/LINK_PUBLICO.png)
+* **ABA ACOMPANHAMENTO:** Monitoramento em tempo real do status de cada solicitação.
+  ![ABA_ACOMPANHAMENTO](img/ABA_ACOMPANHAMENTO.png)
 
 ---
+
 
 ## 👨‍💻 Autor
 
