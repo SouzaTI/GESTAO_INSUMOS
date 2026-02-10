@@ -72,8 +72,12 @@ gestao_insumos/
 
 ### 🔐 Segurança e Acesso
 * **LOGIN:** Interface de autenticação segura para usuários cadastrados.
+  <br>
+  
   ![LOGIN](img/LOGIN.png)
 * **PRIMEIRO ACESSO:** Fluxo obrigatório de redefinição de senha para novas contas.
+  <br>
+
   ![PRIMEIRO_ACESSO](img/PRIMEIRO_ACESSO.png)
 
 ### 📊 Gestão Administrativa
