@@ -28,23 +28,25 @@
 
 ---
 
-## 📁 Estrutura do Projeto
+## 📂 Estrutura do Projeto
 
+```
 gestao_insumos/
-├── api/          # APIs para busca, estoque crítico e status
-├── config/       # Configurações de banco de dados (db.php)
-├── css/          # Estilos (Bootstrap 5 e Custom)
-├── imagens/      # Recursos visuais e logos da empresa
-├── img/          # Ícones e recursos gráficos herdados
-├── js/           # Scripts Select2 e validações de formulário
-├── lib/          # Bibliotecas auxiliares (PDF/Excel)
-├── vendor/       # Dependências do Composer
-├── login.php     # Tela de autenticação e logs de acesso
-├── dashboard.php # Painel principal com KPIs
-├── produtos.php  # Gestão de catálogo e edição em lote
-├── solicitar.php # Portal público de requisições
+├── api/            # APIs para busca, estoque crítico e status
+├── config/         # Configurações de banco de dados (db.php)
+├── css/            # Estilos (Bootstrap 5 e Custom)
+├── imagens/        # Recursos visuais e logos da empresa
+├── img/            # Ícones e recursos gráficos herdados
+├── js/             # Scripts Select2 e validações de formulário
+├── lib/            # Bibliotecas auxiliares (PDF/Excel)
+├── vendor/         # Dependências do Composer
+├── login.php       # Tela de autenticação e logs de acesso
+├── dashboard.php   # Painel principal com KPIs
+├── produtos.php    # Gestão de catálogo e edição em lote
+├── solicitar.php   # Portal público de requisições
 ├── trocar_senha.php # Módulo de segurança obrigatório
-└── README.md     # Esta documentação
+└── README.md       # Esta documentação
+```
 
 ---
 
