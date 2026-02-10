@@ -82,7 +82,7 @@ gestao_insumos/
 * **ABA PRODUTOS:** Gerenciamento completo do catálogo de insumos de uso e consumo.
   ![ABA_PRODUTOS](img/ABA_PRODUTOS.png)
 * **CADASTRAR INSUMO:** Módulo para inclusão técnica de novos materiais no inventário.
-  ![CADASTRAR_INSUMO](img/CADASTRAR_INSUMO.png)
+  ![CADASTRAR_INSUMO](img/CADASTRAR_INSUMOS.png)
 
 ### 🔄 Movimentações de Estoque
 * **ABA MOVIMENTAÇÃO:** Central para registro e controle de fluxos de materiais.
