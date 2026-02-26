@@ -1,26 +1,28 @@
 <?php
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/verificar_permissoes.php'; // 1. Chame o nosso segurança
 
 $req_id = isset($_GET['req_id']) ? (int)$_GET['req_id'] : null;
 $req_dados = null;
 
 if ($req_id) {
-    // Busca os dados da solicitação enviada "da rua"
     $req_dados = $conn->query("SELECT * FROM requisicoes_externas WHERE id = $req_id")->fetch_assoc();
 }
 
+// 2. Proteção de Sessão
 if (!isset($_SESSION['usuario_id'])) { header("Location: login.php"); exit(); }
 $nome_usuario = $_SESSION['usuario_nome'];
 
-// Busca as permissões dinâmicas do usuário
-$id_user = $_SESSION['usuario_id'];
-$user_data = $conn->query("SELECT privilegios FROM usuarios WHERE id = $id_user")->fetch_assoc();
-$perm = json_decode($user_data['privilegios'] ?? '{}', true);
+// 3. Trava de Segurança: Só entra se tiver permissão de Compras OU Estoque
+if (!temAcesso('comprar') && !temAcesso('estoque')) {
+    header("Location: dashboard.php?erro=sem_permissao_modulo");
+    exit();
+}
 
-$pode_comprar = isset($perm['comprar']) && $perm['comprar'] == true;
-$pode_estoque = isset($perm['estoque']) && $perm['estoque'] == true;
-$pode_ver_financeiro = isset($perm['financeiro']) && $perm['financeiro'] == true;
-// Query de aprovadores removida para usar a lista fixa solicitada
+// 4. Define as variáveis de visão usando a nossa função global
+$pode_comprar = temAcesso('comprar');
+$pode_estoque = temAcesso('estoque');
+$pode_ver_financeiro = temAcesso('financeiro');
 ?>
 
 <!DOCTYPE html>
@@ -45,7 +47,9 @@ $pode_ver_financeiro = isset($perm['financeiro']) && $perm['financeiro'] == true
             <p class="text-muted">Selecione o seu perfil de operação abaixo.</p>
         </div>
         <div class="text-end text-muted small">
-            <i class="fas fa-user-circle me-1"></i> <?php echo $nome_usuario; ?>
+            <i class="fas fa-user-circle me-1"></i> <strong><?php echo $nome_usuario; ?></strong> 
+            <span class="badge bg-danger ms-1"><?php echo strtoupper($_SESSION['usuario_nivel'] ?? 'USUARIO'); ?></span>
+            <br>Setor: <span class="text-primary"><?php echo $_SESSION['usuario_local'] ?? 'Geral'; ?></span>
         </div>
     </header>
 
@@ -304,6 +308,14 @@ $(document).ready(function() {
             url: 'api/search_products.php', 
             dataType: 'json', 
             delay: 250, 
+            data: function (params) {
+                return {
+                    q: params.term,
+                    // NOVO: Filtra pelo setor do usuário logado no GLPI
+                    setor: '<?php echo $_SESSION['usuario_local']; ?>',
+                    nivel: '<?php echo $_SESSION['usuario_nivel']; ?>'
+                };
+            },
             processResults: d => ({ results: d }), 
             cache: true 
         },
@@ -530,8 +542,10 @@ function finalizarTudo() {
         modo: modoAtual,
         cabecalho: {
             req_id: $('#master_req_id').val(), // Envia o ID da requisição para finalizar o ciclo
+            setor_origem: '<?php echo $_SESSION['usuario_local']; ?>', 
+            usuario_id: '<?php echo $_SESSION['usuario_id']; ?>',
             tipo_compra: tipoCompra,
-            solicitante: $('#master_solicitante').val() || 'Administrador',
+            solicitante: $('#master_solicitante').val() || '<?php echo $_SESSION['usuario_nome']; ?>',
             aprovador: $('#master_aprovador').val() || '', // Captura o gestor selecionado
             fornecedor: fornecedorFinal, 
             cnpj: $('#master_cnpj').val() || '',

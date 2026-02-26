@@ -1,11 +1,14 @@
 <?php
 // produtos.php
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/verificar_permissoes.php'; // Implementado
 
 if (!isset($_SESSION['usuario_id'])) { header("Location: login.php"); exit(); }
+travarPagina('estoque'); // Implementado: Trava de segurança por módulo
 
 $nome_usuario = $_SESSION['usuario_nome'];
 $nivel_usuario = $_SESSION['usuario_nivel'] ?? 'user';
+$local_usuario = $_SESSION['usuario_local'] ?? 'Geral'; // Localização vinda do GLPI
 
 // --- 1. CONFIGURAÇÃO DE PAGINAÇÃO E FILTROS ---
 $itens_por_pagina = 15;
@@ -18,6 +21,13 @@ $categoria_filtro = isset($_GET['categoria']) ? trim($_GET['categoria']) : '';
 $condicoes = [];
 $params = [];
 $types = "";
+
+// Implementado: Filtro de Setor (Se não for admin, vê apenas o seu local do GLPI)
+if ($nivel_usuario !== 'admin') {
+    $condicoes[] = "setor = ?";
+    $params[] = $local_usuario;
+    $types .= "s";
+}
 
 if (!empty($busca)) {
     $condicoes[] = "(descricao LIKE ? OR codigo_referencia LIKE ?)";
@@ -61,10 +71,11 @@ $lista_produtos = $stmt_lista->get_result();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['salvar_produto'])) {
     $conn->begin_transaction();
     try {
-        $sql = "INSERT INTO produtos (codigo_referencia, descricao, unidade_medida, tipo_produto, categoria, preco_custo, estoque_minimo) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
+        // Implementado: Inclusão do campo 'setor' para novos produtos
+        $sql = "INSERT INTO produtos (codigo_referencia, descricao, unidade_medida, tipo_produto, categoria, preco_custo, estoque_minimo, setor) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sssssdi", $_POST['referencia'], $_POST['descricao'], $_POST['unidade'], $_POST['tipo'], $_POST['categoria'], $_POST['preco_custo'], $_POST['minimo']);
+        $stmt->bind_param("sssssdis", $_POST['referencia'], $_POST['descricao'], $_POST['unidade'], $_POST['tipo'], $_POST['categoria'], $_POST['preco_custo'], $_POST['minimo'], $local_usuario);
         $stmt->execute();
         $p_id = $conn->insert_id;
 
@@ -98,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['editar_produto'])) {
             $stmt_lote->bind_param("isdd", $id, $val, $qtd, $qtd);
             $stmt_lote->execute();
             
-            // Log Universal
+            // Log Universal (Garante rastreabilidade pelo ID do GLPI)
             $log_desc = ($qtd > 0 ? "Adicionou " : "Removeu ") . abs($qtd) . " un. Validade: $val";
             $sql_log = "INSERT INTO logs_sistema (usuario_id, usuario_nome, tabela_afetada, registro_id, acao, descricao_log) VALUES (?, ?, 'lotes', ?, 'AJUSTE_ESTOQUE', ?)";
             $st_log = $conn->prepare($sql_log);
@@ -116,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
     header("Location: produtos.php?msg=excluido"); exit();
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -163,9 +175,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
     <div id="bulk-actions-panel" class="mb-3 d-none animate__animated animate__fadeIn">
         <div class="alert alert-warning border-0 shadow-sm d-flex justify-content-between align-items-center py-2">
             <span><strong id="selected-count">0</strong> itens selecionados</span>
-            <button class="btn btn-warning btn-sm fw-bold" onclick="abrirEdicaoLote()">
-                <i class="fas fa-layer-group me-2"></i> ALTERAR CATEGORIA EM LOTE
-            </button>
+            
+            <?php if (temAcesso('p_editar')): ?>
+                <button class="btn btn-warning btn-sm fw-bold" onclick="abrirEdicaoLote()">
+                    <i class="fas fa-layer-group me-2"></i> ALTERAR CATEGORIA EM LOTE
+                </button>
+            <?php else: ?>
+                <span class="badge bg-light text-dark border"><i class="fas fa-lock me-1"></i> Apenas Leitura</span>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -205,9 +222,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
                             </span>
                         </td>
                         <td class="text-center">
-                            <button class="btn btn-sm btn-outline-primary px-3" onclick='abrirAcoes(<?= json_encode($p) ?>)'>
-                                <i class="fas fa-cog"></i> Ações
-                            </button>
+                            <?php 
+                            // Valida se o usuário tem qualquer uma das subpermissões de ação
+                            if (temAcesso('p_editar') || temAcesso('p_ajustar') || temAcesso('p_excluir')): 
+                            ?>
+                                <button class="btn btn-sm btn-outline-primary px-3" onclick='abrirAcoes(<?= json_encode($p) ?>)'>
+                                    <i class="fas fa-cog"></i> Ações
+                                </button>
+                            <?php else: ?>
+                                <span class="badge bg-light text-muted border">Apenas Leitura</span>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endwhile; ?>
@@ -299,14 +323,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
                 <input type="hidden" name="produto_id" id="edit_id">
                 <div class="col-md-12 alert alert-info py-2"><strong>Estoque Atual:</strong> <span id="view_est">0</span></div>
                 
-                <div class="col-md-6 bg-warning-subtle p-2 border rounded">
-                    <label class="fw-bold small text-dark">Ajustar Estoque (+ ou -)</label>
-                    <input type="number" name="qtd_ajuste" class="form-control" placeholder="Ex: 10 ou -5">
-                </div>
-                <div class="col-md-6 bg-warning-subtle p-2 border rounded">
-                    <label class="fw-bold small text-dark">Nova Validade</label>
-                    <input type="date" name="validade_ajuste" class="form-control">
-                </div>
+                <?php if (temAcesso('p_ajustar')): ?>
+                    <div class="col-md-6 bg-warning-subtle p-2 border rounded">
+                        <label class="fw-bold small text-dark">Ajustar Estoque (+ ou -)</label>
+                        <input type="number" name="qtd_ajuste" class="form-control" placeholder="Ex: 10 ou -5">
+                    </div>
+                    <div class="col-md-6 bg-warning-subtle p-2 border rounded">
+                        <label class="fw-bold small text-dark">Nova Validade</label>
+                        <input type="date" name="validade_ajuste" class="form-control">
+                    </div>
+                <?php endif; ?>
 
                 <div class="col-md-4"><label class="fw-bold small">Cód.</label><input type="text" name="referencia" id="edit_ref" class="form-control"></div>
                 <div class="col-md-8"><label class="fw-bold small">Descrição</label><input type="text" name="descricao" id="edit_desc" class="form-control"></div>
@@ -329,10 +355,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
                 <div class="col-md-6"><label class="fw-bold small">Mínimo</label><input type="number" name="minimo" id="edit_min" class="form-control"></div>
                 <div class="col-md-6"><label class="fw-bold small">Custo</label><input type="number" step="0.01" name="preco_custo" id="edit_custo" class="form-control"></div>
             </div></div>
+
             <div class="modal-footer d-flex justify-content-between">
-                <button type="submit" name="excluir_produto" class="btn btn-outline-danger" onclick="return confirm('Excluir?')"><i class="fas fa-trash me-2"></i>Excluir</button>
-                <button type="submit" name="editar_produto" class="btn btn-success px-5">Salvar Alterações</button>
+                <?php if (temAcesso('p_excluir')): ?>
+                    <button type="submit" name="excluir_produto" class="btn btn-outline-danger" onclick="return confirm('Excluir?')">
+                        <i class="fas fa-trash me-2"></i>Excluir
+                    </button>
+                <?php else: ?>
+                    <div></div> <?php endif; ?>
+
+                <?php if (temAcesso('p_editar')): ?>
+                    <button type="submit" name="editar_produto" class="btn btn-success px-5">Salvar Alterações</button>
+                <?php endif; ?>
             </div>
+
         </form>
     </div>
 </div>
@@ -342,92 +378,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['excluir_produto'])) {
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-$(document).ready(function() {
     // 1. Lógica para aparecer/sumir o painel de ações em lote
-    $(document).on('change', '#check-all, .product-checkbox', function() {
-        if ($('#check-all').is(':focus')) {
-            $('.product-checkbox').prop('checked', $('#check-all').prop('checked'));
-        }
-        
-        const selecionados = $('.product-checkbox:checked').length;
-        $('#selected-count').text(selecionados);
-        
-        if (selecionados > 0) {
-            $('#bulk-actions-panel').removeClass('d-none');
-        } else {
-            $('#bulk-actions-panel').addClass('d-none');
-        }
+    $(document).ready(function() {
+        $(document).on('change', '#check-all, .product-checkbox', function() {
+            if (this.id === 'check-all') {
+                $('.product-checkbox').prop('checked', $(this).prop('checked'));
+            }
+            
+            const selecionados = $('.product-checkbox:checked').length;
+            $('#selected-count').text(selecionados);
+            
+            if (selecionados > 0) {
+                $('#bulk-actions-panel').removeClass('d-none');
+            } else {
+                $('#bulk-actions-panel').addClass('d-none');
+            }
+        });
     });
-});
 
-function abrirAcoes(p) {
-    document.getElementById('edit_id').value = p.id;
-    document.getElementById('edit_ref').value = p.codigo_referencia;
-    document.getElementById('edit_desc').value = p.descricao;
-    document.getElementById('edit_un').value = p.unidade_medida;
-    document.getElementById('edit_tipo').value = p.tipo_produto;
-    document.getElementById('edit_cat').value = p.categoria;
-    document.getElementById('edit_min').value = p.estoque_minimo;
-    document.getElementById('edit_custo').value = p.preco_custo;
-    document.getElementById('view_est').innerText = p.estoque_total || 0;
-    new bootstrap.Modal(document.getElementById('modalAcoes')).show();
-}
-
-// 2. Nome da função corrigido para bater com o botão do HTML
-function abrirEdicaoLote() {
-    const selecionados = $('.product-checkbox:checked').map(function() { return $(this).val(); }).get();
-    
-    if (selecionados.length === 0) {
-        return Swal.fire('Aviso', 'Selecione ao menos um produto!', 'warning');
+    // 2. Função global para o modal (fora do document.ready para o onclick funcionar)
+    function abrirAcoes(p) {
+        document.getElementById('edit_id').value = p.id;
+        document.getElementById('edit_ref').value = p.codigo_referencia;
+        document.getElementById('edit_desc').value = p.descricao;
+        document.getElementById('edit_un').value = p.unidade_medida;
+        document.getElementById('edit_tipo').value = p.tipo_produto;
+        document.getElementById('edit_cat').value = p.categoria;
+        document.getElementById('edit_min').value = p.estoque_minimo;
+        document.getElementById('edit_custo').value = p.preco_custo;
+        document.getElementById('view_est').innerText = p.estoque_total || 0;
+        new bootstrap.Modal(document.getElementById('modalAcoes')).show();
     }
 
-    Swal.fire({
-        title: 'Alterar Categoria em Lote',
-        text: `Alterando ${selecionados.length} produtos.`,
-        input: 'select',
-        inputOptions: {
-            'OPERACIONAL': 'OPERACIONAL',
-            'ESCRITÓRIO ADM': 'ESCRITÓRIO ADM',
-            'CONSERVAÇÃO': 'CONSERVAÇÃO',
-            'ALIMENTOS': 'ALIMENTOS',
-            'MANUTENÇÃO': 'MANUTENÇÃO' // Adicionado conforme sua solicitação
-        },
-        inputPlaceholder: 'Selecione a nova categoria...',
-        showCancelButton: true,
-        confirmButtonText: 'Atualizar Tudo',
-        confirmButtonColor: '#254c90',
-        cancelButtonText: 'Cancelar',
-        // O segredo está aqui: o preConfirm valida se algo foi escolhido
-        preConfirm: (valorSelecionado) => {
-            if (!valorSelecionado) {
-                Swal.showValidationMessage('Você precisa selecionar uma categoria');
-                return false;
-            }
-            return valorSelecionado;
-        }
-    }).then((result) => {
-        // Se o usuário confirmou e escolheu um valor
-        if (result.isConfirmed && result.value) {
-            $.post('api/bulk_update_category.php', {
-                ids: selecionados,
-                categoria: result.value // Aqui o valor selecionado (ex: MANUTENÇÃO) é enviado
-            }, function(res) {
-                if(res.success) {
-                    Swal.fire('Sucesso!', 'Categorias atualizadas.', 'success').then(() => location.reload());
-                } else {
-                    Swal.fire('Erro', 'Falha ao atualizar no banco de dados.', 'error');
-                }
-            }, 'json');
-        }
-    });
-}
+    // 3. Função para edição em lote
+    function abrirEdicaoLote() {
 
+        const podeEditar = <?php echo temAcesso('p_editar') ? 'true' : 'false'; ?>;
+
+        if (!podeEditar) {
+            return Swal.fire('Acesso Negado', 'Você não tem permissão para realizar alterações em lote.', 'error');
+        }
+
+        const selecionados = $('.product-checkbox:checked').map(function() { return $(this).val(); }).get();
+        if (selecionados.length === 0) return Swal.fire('Aviso', 'Selecione ao menos um produto!', 'warning');
+
+        Swal.fire({
+            title: 'Alterar Categoria em Lote',
+            input: 'select',
+            inputOptions: {
+                'OPERACIONAL': 'OPERACIONAL',
+                'ESCRITÓRIO ADM': 'ESCRITÓRIO ADM',
+                'CONSERVAÇÃO': 'CONSERVAÇÃO',
+                'ALIMENTOS': 'ALIMENTOS',
+                'MANUTENÇÃO': 'MANUTENÇÃO'
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Atualizar Tudo'
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                $.post('api/bulk_update_category.php', { ids: selecionados, categoria: result.value }, function(res) {
+                    if(res.success) location.reload();
+                }, 'json');
+            }
+        });
+    }
+
+   
 </script>
 
 <?php if(isset($_GET['msg'])): ?>
 <script>
     const msgs = {sucesso: 'Cadastrado!', editado: 'Atualizado!', excluido: 'Removido!'};
-    Swal.fire({ title: 'Sucesso!', text: msgs['<?= $_GET['msg'] ?>'], icon: 'success', confirmButtonColor: '#254c90' });
+    Swal.fire({ title: 'Sucesso!', text: msgs['<?= $_GET['msg'] ?>'] || 'Pronto!', icon: 'success', confirmButtonColor: '#254c90' });
 </script>
 <?php endif; ?>
 </body>

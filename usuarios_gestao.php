@@ -18,7 +18,7 @@ if ($perfil_logado !== 'admin') {
     die("Acesso negado. Apenas Super-Admins do GLPI gerenciam acessos.");
 }
 
-// 3. LÓGICA PARA SALVAR PERMISSÕES (No banco Gestão)
+// 3. LÓGICA PARA SALVAR PERMISSÕES
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['glpi_user_id'])) {
     $id_edit = $_POST['glpi_user_id'];
     
@@ -26,7 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['glpi_user_id'])) {
         "comprar"    => isset($_POST['p_comprar']),
         "estoque"    => isset($_POST['p_estoque']),
         "financeiro" => isset($_POST['p_financeiro']),
-        "usuarios"   => isset($_POST['p_usuarios'])
+        "usuarios"   => isset($_POST['p_usuarios']),
+        // NOVAS SUBPERMISSÕES EM CASCATA
+        "p_editar"   => isset($_POST['p_editar']),
+        "p_excluir"  => isset($_POST['p_excluir']),
+        "p_ajustar"  => isset($_POST['p_ajustar']),
+        "r_entrada"  => isset($_POST['r_entrada']),
+        "r_saida"    => isset($_POST['r_saida'])
     ];
     $json_perms = json_encode($novas_perms);
     
@@ -102,7 +108,7 @@ $res_usuarios = $glpi_pdo->query($query_usuarios);
                         <th class="ps-4">Usuário GLPI</th>
                         <th>Login</th>
                         <th class="text-center">Compras</th>
-                        <th class="text-center">Estoque</th>
+                        <th class="text-center bg-primary">Produtos</th>
                         <th class="text-center">Financeiro</th>
                         <th class="text-center">Admin App</th>
                         <th class="text-end pe-4">Ação</th>
@@ -126,11 +132,47 @@ $res_usuarios = $glpi_pdo->query($query_usuarios);
                             <td><code class="text-primary login-usuario"><?php echo $row['name']; ?></code></td>
                             
                             <td class="text-center">
-                                <input type="checkbox" class="form-check-input" name="p_comprar" <?php echo (isset($p['comprar']) && $p['comprar']) ? 'checked' : ''; ?>>
+                                <div class="d-inline-block text-start">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input border-dark" name="p_comprar" <?php echo (isset($p['comprar']) && $p['comprar']) ? 'checked' : ''; ?>>
+                                        <label class="form-check-label fw-bold">Compras (Aba)</label>
+                                    </div>
+                                    <div class="ps-3 border-start ms-2 mt-1">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="r_entrada" <?php echo (isset($p['r_entrada']) && $p['r_entrada']) ? 'checked' : ''; ?>>
+                                            <label class="form-check-label small text-muted">Registrar Entrada</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="r_saida" <?php echo (isset($p['r_saida']) && $p['r_saida']) ? 'checked' : ''; ?>>
+                                            <label class="form-check-label small text-muted">Registrar Saída</label>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
-                            <td class="text-center">
-                                <input type="checkbox" class="form-check-input" name="p_estoque" <?php echo (isset($p['estoque']) && $p['estoque']) ? 'checked' : ''; ?>>
+
+                            <td class="text-center bg-light">
+                                <div class="d-inline-block text-start">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input border-dark" name="p_estoque" <?php echo (isset($p['estoque']) && $p['estoque']) ? 'checked' : ''; ?>>
+                                        <label class="form-check-label fw-bold">Estoque (Aba)</label>
+                                    </div>
+                                    <div class="ps-3 border-start ms-2 mt-1">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="p_editar" <?php echo (isset($p['p_editar']) && $p['p_editar']) ? 'checked' : ''; ?>>
+                                            <label class="form-check-label small text-primary">Editar</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="p_excluir" <?php echo (isset($p['p_excluir']) && $p['p_excluir']) ? 'checked' : ''; ?>>
+                                            <label class="form-check-label small text-danger">Excluir</label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="p_ajustar" <?php echo (isset($p['p_ajustar']) && $p['p_ajustar']) ? 'checked' : ''; ?>>
+                                            <label class="form-check-label small text-warning">Ajustar Qtd.</label>
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
+
                             <td class="text-center">
                                 <input type="checkbox" class="form-check-input" name="p_financeiro" <?php echo (isset($p['financeiro']) && $p['financeiro']) ? 'checked' : ''; ?>>
                             </td>
