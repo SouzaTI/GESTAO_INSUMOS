@@ -82,7 +82,7 @@ $pode_ver_financeiro = isset($perm['financeiro']) && $perm['financeiro'] == true
                     <label class="form-label fw-bold text-primary small">Origem do Produto / Tipo de Compra</label>
                     <select id="m_tipo_compra" class="form-select border-primary" onchange="ajustarCamposCompra()">
                         <option value="cotacao">🔍 APENAS COTAÇÃO (Busca de Preços)</option>
-                        <option value="externo">💰 COMPRA DIRETA (Já tenho o Fornecedor e Valor)</option>
+                        <option value="externo">💰 COMPRA EXTERNA (Já tenho o Fornecedor e Valor)</option>
                         <option value="interno">🏢 RETIRADA INTERNA (Estoque Próprio)</option>
                     </select>
                 </div>

@@ -67,3 +67,19 @@
 .badge-status { padding: 8px 12px; border-radius: 20px; font-weight: bold; }
 .tempo-alerta { color: #d9534f; font-weight: bold; animation: blinker 2s linear infinite; }
 @keyframes blinker { 50% { opacity: 0.5; } }
+
+/* Container da tabela com rolagem interna */
+.table-scroll-container {
+    max-height: 60vh; /* Ajuste a altura conforme preferir */
+    overflow-y: auto;
+    border-radius: 0 0 12px 12px;
+}
+
+/* Deixa o cabeçalho da tabela fixo no topo ao rolar */
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #212529 !important; /* Cor dark do Bootstrap */
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
+}

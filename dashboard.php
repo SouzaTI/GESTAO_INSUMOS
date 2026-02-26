@@ -1,7 +1,9 @@
 <?php
+// 1. INCLUSÕES E SEGURANÇA
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/verificar_permissoes.php'; // Nosso novo motor de travas
 
-// Proteção de Sessão
+// Proteção de Sessão (Já validada pelo login.php do GLPI)
 if (!isset($_SESSION['usuario_id'])) {
     header("Location: login.php");
     exit();
@@ -9,8 +11,9 @@ if (!isset($_SESSION['usuario_id'])) {
 
 $nome_usuario = $_SESSION['usuario_nome'];
 $nivel_usuario = $_SESSION['usuario_nivel'] ?? 'user';
+$local_usuario = $_SESSION['usuario_local'] ?? 'Geral'; // Localização vinda do GLPI
 
-// --- 1. CONSULTAS OTIMIZADAS (KPIs) ---
+// --- 2. CONSULTAS OTIMIZADAS (KPIs) ---
 
 // Consolidado: Estoque Total e Quantidade de Alertas de Validade
 $stats = $conn->query("SELECT 
@@ -46,7 +49,7 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Administrativo</title>
+    <title>Painel Administrativo - <?php echo $local_usuario; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
@@ -67,18 +70,29 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
 <?php include 'includes/sidebar.php'; ?>
 
 <div class="main-content">
+    
+    <?php if (isset($_GET['erro']) && $_GET['erro'] === 'sem_permissao_modulo'): ?>
+        <div class="alert alert-danger shadow-sm border-0 mb-4 animate-pulse">
+            <i class="fas fa-exclamation-triangle me-2"></i> 
+            <strong>Acesso Negado:</strong> Você não tem permissão para acessar o módulo solicitado.
+        </div>
+    <?php endif; ?>
+
     <header class="mb-5 d-flex justify-content-between align-items-end">
         <div>
             <h2 class="fw-bold text-dark mb-1">Painel de Performance</h2>
-            <p class="text-muted mb-0">Monitoramento de insumos e tempo de resposta operacional.</p>
+            <p class="text-muted mb-0">Monitoramento de insumos | Setor: <strong><?php echo $local_usuario; ?></strong></p>
         </div>
         <div class="badge bg-white text-dark shadow-sm p-3 border rounded-3">
             <i class="fas fa-user-shield me-2 text-primary"></i><?php echo $nome_usuario; ?> 
-            <span class="ms-2 badge bg-primary"><?php echo strtoupper($nivel_usuario); ?></span>
+            <span class="ms-2 badge <?php echo ($nivel_usuario === 'admin') ? 'bg-danger' : 'bg-primary'; ?>">
+                <?php echo strtoupper($nivel_usuario); ?>
+            </span>
         </div>
     </header>
 
     <div class="row g-4 mb-5">
+        <?php if (temAcesso('estoque')): ?>
         <div class="col-md-3" style="cursor: pointer;" onclick="abrirEstoqueCritico()">
             <div class="card card-kpi p-4 shadow-sm">
                 <div class="d-flex align-items-center">
@@ -92,6 +106,9 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
                 </div>
             </div>
         </div>
+        <?php endif; ?>
+
+        <?php if (temAcesso('estoque')): ?>
         <div class="col-md-3">
             <div class="card card-kpi p-4 shadow-sm border-start border-danger border-4">
                 <div class="d-flex align-items-center">
@@ -103,6 +120,9 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
                 </div>
             </div>
         </div>
+        <?php endif; ?>
+
+        <?php if (temAcesso('estoque') || temAcesso('financeiro')): ?>
         <div class="col-md-3">
             <div class="card card-kpi p-4 shadow-sm">
                 <div class="d-flex align-items-center">
@@ -114,6 +134,9 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
                 </div>
             </div>
         </div>
+        <?php endif; ?>
+
+        <?php if (temAcesso('comprar')): ?>
         <div class="col-md-3">
             <div class="card card-kpi p-4 shadow-sm bg-dark text-white">
                 <div class="d-flex align-items-center">
@@ -125,8 +148,10 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
                 </div>
             </div>
         </div>
+        <?php endif; ?>
     </div>
 
+    <?php if (temAcesso('estoque')): ?>
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold"><i class="fas fa-exclamation-triangle text-warning me-2"></i>Prioridade de Uso (FEFO)</h5>
@@ -171,6 +196,7 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
             </table>
         </div>
     </div>
+    <?php endif; ?>
 
     <div class="modal fade" id="modalCritico" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -192,26 +218,23 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <script>
-    function abrirEstoqueCritico() {
-        $.get('api/get_estoque_critico.php', function(dados) {
-            let h = '';
-            dados.forEach(item => {
-                h += `<tr>
-                        <td>${item.descricao}</td>
-                        <td class="text-end text-danger fw-bold">${item.saldo}</td>
-                      </tr>`;
-            });
-            if(dados.length === 0) h = '<tr><td colspan="2" class="text-center">Nenhum item negativo.</td></tr>';
-            $('#lista_negativa').html(h);
-            $('#modalCritico').modal('show');
+<script>
+function abrirEstoqueCritico() {
+    $.get('api/get_estoque_critico.php', function(dados) {
+        let h = '';
+        dados.forEach(item => {
+            h += `<tr>
+                    <td>${item.descricao}</td>
+                    <td class="text-end text-danger fw-bold">${item.saldo}</td>
+                  </tr>`;
         });
-    }
-    </script>
-</body>
-</html>
+        if(dados.length === 0) h = '<tr><td colspan="2" class="text-center">Nenhum item negativo.</td></tr>';
+        $('#lista_negativa').html(h);
+        $('#modalCritico').modal('show');
+    });
+}
+</script>
 </body>
 </html>

@@ -1,16 +1,11 @@
 <?php
+// Substituímos a consulta direta ao banco pela nossa função de segurança
+require_once __DIR__ . '/verificar_permissoes.php'; 
+
 $pagina = basename($_SERVER['PHP_SELF']);
 
-// 1. Busca as permissões do usuário logado diretamente do banco
-$id_user_sidebar = $_SESSION['usuario_id'];
-$query_sidebar = $conn->query("SELECT privilegios FROM usuarios WHERE id = $id_user_sidebar");
-$dados_sidebar = $query_sidebar->fetch_assoc();
-
-// 2. Decodifica o mapa de permissões
-$perm = json_decode($dados_sidebar['privilegios'] ?? '{}', true);
-
-// 3. Define quem pode ver o quê (Chaves do seu JSON)
-$pode_gerenciar_usuarios = isset($perm['usuarios']) && $perm['usuarios'] === true;
+// 1. Define quem pode gerenciar usuários (Super-Admin do GLPI ou permissão específica)
+$pode_gerenciar_usuarios = temAcesso('usuarios'); 
 ?>
 <div class="sidebar">
     <div class="sidebar-header">
@@ -21,18 +16,24 @@ $pode_gerenciar_usuarios = isset($perm['usuarios']) && $perm['usuarios'] === tru
             <a href="dashboard.php" class="nav-link <?= ($pagina == 'dashboard.php') ? 'active' : '' ?>">
                 <i class="fas fa-chart-line"></i> Painel
             </a>
-            <a href="produtos.php" class="nav-link <?= ($pagina == 'produtos.php') ? 'active' : '' ?>">
-                <i class="fas fa-box"></i> Produtos
-            </a>
-            <a href="registrar.php" class="nav-link <?= ($pagina == 'registrar.php') ? 'active' : '' ?>">
-                <i class="fas fa-exchange-alt"></i> Movimentação
-            </a>
-            <a href="requisicoes.php" class="nav-link <?= ($pagina == 'requisicoes.php') ? 'active' : '' ?>">
-                <i class="fas fa-inbox"></i> Requisições 
-            </a>
-            <a href="acompanhamento.php" class="nav-link <?= ($pagina == 'acompanhamento.php') ? 'active' : '' ?>">
-                <i class="fas fa-tasks"></i> Acompanhamento
-            </a>
+
+            <?php if (temAcesso('estoque')): ?>
+                <a href="produtos.php" class="nav-link <?= ($pagina == 'produtos.php') ? 'active' : '' ?>">
+                    <i class="fas fa-box"></i> Produtos
+                </a>
+                <a href="registrar.php" class="nav-link <?= ($pagina == 'registrar.php') ? 'active' : '' ?>">
+                    <i class="fas fa-exchange-alt"></i> Movimentação
+                </a>
+            <?php endif; ?>
+
+            <?php if (temAcesso('comprar')): ?>
+                <a href="requisicoes.php" class="nav-link <?= ($pagina == 'requisicoes.php') ? 'active' : '' ?>">
+                    <i class="fas fa-inbox"></i> Requisições 
+                </a>
+                <a href="acompanhamento.php" class="nav-link <?= ($pagina == 'acompanhamento.php') ? 'active' : '' ?>">
+                    <i class="fas fa-tasks"></i> Acompanhamento
+                </a>
+            <?php endif; ?>
 
             <?php if ($pode_gerenciar_usuarios): ?>
                 <div class="mt-4 border-top border-secondary pt-3 opacity-75">

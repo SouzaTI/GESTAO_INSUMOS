@@ -1,5 +1,6 @@
 <?php
-require_once __DIR__ . '/config/db.php';
+session_start(); // Garante que a sessão comece antes de qualquer saída
+require_once __DIR__ . '/config/db.php'; // Sua conexão original (MySQLi) com gestao_insumos
 
 $error_message = '';
 
@@ -10,49 +11,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($login) || empty($senha)) {
         $error_message = "Por favor, preencha o login e a senha.";
     } else {
-        // Ajustado: Agora buscamos também o campo 'primeiro_acesso'
-        $stmt = $conn->prepare("SELECT id, nome, senha, nivel, primeiro_acesso FROM usuarios WHERE login = ?");
-        $stmt->bind_param("s", $login);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        try {
+            // 1. CONEXÃO TEMPORÁRIA COM O GLPI (PDO)
+            // Usando os dados do seu print: 127.0.0.1:3307 e banco glpidb_att
+            $glpi_pdo = new PDO("mysql:host=127.0.0.1;port=3307;dbname=glpidb_att;charset=utf8mb4", 'root', '');
+            $glpi_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        
-
-        if ($result->num_rows === 1) {
-            $user = $result->fetch_assoc();
+            // 2. QUERY "MONSTRA" (Busca Usuário + Perfil + Setor/Entidade)
+            $sql_glpi = "SELECT u.id, u.name, u.password, 
+                               p.name AS perfil_nome, 
+                               e.completename AS setor_nome
+                        FROM glpi_users u
+                        INNER JOIN glpi_profiles_users pu ON u.id = pu.users_id
+                        INNER JOIN glpi_profiles p ON pu.profiles_id = p.id
+                        LEFT JOIN glpi_entities e ON pu.entities_id = e.id
+                        WHERE u.name = :login";
             
-            if (password_verify($senha, $user['senha'])) {
-                // Iniciar sessão
-                $_SESSION['usuario_id'] = $user['id'];
-                $_SESSION['usuario_nome'] = $user['nome'];
-                $_SESSION['usuario_nivel'] = $user['nivel'];
+            $stmt = $glpi_pdo->prepare($sql_glpi);
+            $stmt->execute(['login' => $login]);
+            $user_glpi = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                // --- REGISTRO DE LOG DE ACESSO ---
-                $ip = $_SERVER['REMOTE_ADDR']; // Captura o IP do usuário
-                $log_desc = "Usuário realizou login no sistema. IP: $ip";
+            // 3. VALIDAÇÃO DE SENHA (BCRYPT do GLPI)
+            if ($user_glpi && password_verify($senha, $user_glpi['password'])) {
+                
+                // Definindo variáveis de sessão baseadas no GLPI
+                $_SESSION['usuario_id'] = $user_glpi['id'];
+                $_SESSION['usuario_nome'] = $user_glpi['name'];
+                $_SESSION['usuario_setor'] = $user_glpi['setor_nome'] ?? 'Geral';
+                
+                // Lógica de Nível: Super-Admin vira admin, o resto vira usuario
+                $_SESSION['usuario_nivel'] = ($user_glpi['perfil_nome'] === 'Super-Admin') ? 'admin' : 'usuario';
+
+                // --- REGISTRO DE LOG NO BANCO LOCAL (Gestão de Insumos) ---
+                // Usamos a variável $conn que vem do seu db.php original
+                $ip = $_SERVER['REMOTE_ADDR'];
+                $log_desc = "Login via GLPI. Setor: " . $_SESSION['usuario_setor'] . " | IP: $ip";
                 $sql_log = "INSERT INTO logs_sistema (usuario_id, usuario_nome, tabela_afetada, registro_id, acao, descricao_log) 
                             VALUES (?, ?, 'usuarios', ?, 'LOGIN', ?)";
-                $st_log = $conn->prepare($sql_log);
-                $user_id = $user['id'];
-                $user_nome = $user['nome'];
-                $st_log->bind_param("isis", $user_id, $user_nome, $user_id, $log_desc);
-                $st_log->execute();
                 
-                // Lógica de Primeiro Acesso: Redireciona se for 1
-                if ($user['primeiro_acesso'] == 1) {
-                    header("Location: trocar_senha.php");
-                    exit();
-                }
+                $st_log = $conn->prepare($sql_log);
+                $st_log->bind_param("isis", $user_glpi['id'], $user_glpi['name'], $user_glpi['id'], $log_desc);
+                $st_log->execute();
 
                 header("Location: dashboard.php");
                 exit();
             } else {
-                $error_message = "Login ou senha inválidos.";
+                $error_message = "Login ou senha inválidos (Base GLPI).";
             }
-        } else {
-            $error_message = "Login ou senha inválidos.";
+        } catch (PDOException $e) {
+            $error_message = "Erro ao conectar na base de autenticação: " . $e->getMessage();
         }
-        $stmt->close();
     }
 }
 ?>
