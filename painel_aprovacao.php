@@ -1,13 +1,50 @@
 <?php
 require_once __DIR__ . '/config/db.php';
 
-// Simulação da sessão do Alex Cunha
-$id_gestor_logado = 40; 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-$query = "SELECT * FROM requisicoes 
-          WHERE aprovador_id = $id_gestor_logado 
-          AND status_pedido = 'PENDENTE_GESTOR' 
-          ORDER BY data_criacao DESC";
+// 1. Definição de Identidade e Permissão
+$id_gestor_logado = $_SESSION['glpi_id'] ?? $_SESSION['usuario_id'] ?? 0; 
+
+// Proteção: Se não houver ID na sessão, barra o acesso
+if ($id_gestor_logado === 0) {
+    header("Location: login.php"); 
+    exit;
+}
+
+// 2. Verificação de Perfil Administrativo
+$caminho_permissoes = __DIR__ . '/verificar_permissoes.php';
+$pode_ver_tudo = false;
+
+if (file_exists($caminho_permissoes)) {
+    require_once $caminho_permissoes;
+    // Se a função temAcesso('usuarios') retornar true, você é Admin
+    $pode_ver_tudo = temAcesso('usuarios'); 
+} else {
+    // Fallback de segurança para o seu ID de desenvolvedor (Ex: ID 2 ou 1)
+    $pode_ver_tudo = ($id_gestor_logado == 2); 
+}
+
+// 3. Query Dinâmica Baseada no Perfil
+if ($pode_ver_tudo) {
+    // VISÃO ADMIN: Ignora o filtro de aprovador para monitorar todos os pedidos
+    $query = "SELECT r.*, u.firstname as nome_aprovador 
+              FROM requisicoes r
+              LEFT JOIN glpidb_att.glpi_users u ON r.aprovador_id = u.id
+              WHERE r.status_pedido = 'PENDENTE_GESTOR' 
+              ORDER BY r.data_criacao DESC";
+} else {
+    // VISÃO GESTOR: Filtra rigorosamente pelo ID de quem está logado
+    $query = "SELECT r.*, u.firstname as nome_aprovador 
+              FROM requisicoes r
+              LEFT JOIN glpidb_att.glpi_users u ON r.aprovador_id = u.id
+              WHERE r.aprovador_id = $id_gestor_logado 
+              AND r.status_pedido = 'PENDENTE_GESTOR' 
+              ORDER BY r.data_criacao DESC";
+}
+
 $pedidos = $conn->query($query);
 ?>
 
@@ -31,14 +68,48 @@ $pedidos = $conn->query($query);
         .btn-rejeitar { color: #dc3545; font-weight: 600; text-decoration: none; }
         .btn-rejeitar:hover { color: #a71d2a; }
         .empty-state { text-align: center; padding: 50px; color: #6c757d; }
+
+        /* Mantendo a consistência de elevação visual */
+        .hover-elevate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1) !important;
+            background-color: #f8f9fc;
+        }
+
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-custom mb-4">
-    <div class="container">
-        <span class="navbar-brand mb-0 h1"><i class="fas fa-shield-check me-2"></i> Portal do Gestor</span>
-        <span class="badge bg-light text-dark shadow-sm">ID Aprovador: <?php echo $id_gestor_logado; ?></span>
+<nav class="navbar navbar-expand-lg mb-4 shadow-sm" style="background: #ffffff; border-bottom: 2px solid #e3e6f0; border-radius: 0 0 15px 15px;">
+    <div class="container-fluid px-4 py-1">
+        
+        <span class="navbar-brand mb-0 d-flex align-items-center">
+            <div class="bg-light text-primary rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 48px; height: 48px; border: 1px solid #d1d3e2;">
+                <i class="fas fa-user-shield fa-lg"></i>
+            </div>
+            <div class="d-flex flex-column">
+                <span class="fw-bold text-dark" style="font-size: 1.25rem; line-height: 1.1;">Portal do Gestor</span>
+                <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">Validação e Controle de Insumos</small>
+            </div>
+        </span>
+
+        <div class="d-flex align-items-center gap-4">
+            
+            <div class="d-none d-md-flex align-items-center bg-light px-3 py-2 rounded-pill border shadow-sm">
+                <div class="text-end me-3 border-end pe-3">
+                    <small class="text-uppercase text-muted fw-bold d-block" style="font-size: 0.55rem; letter-spacing: 1px;">Aprovador Ativo</small>
+                    <span class="text-dark fw-bold" style="font-size: 0.85rem;">ID #<?php echo $id_gestor_logado; ?></span>
+                </div>
+                <div class="position-relative">
+                    <i class="fas fa-fingerprint text-primary" style="font-size: 1.1rem;"></i>
+                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle"></span>
+                </div>
+            </div>
+            
+            <a href="dashboard.php" class="btn btn-white shadow-sm border rounded-pill px-4 fw-bold text-dark hover-elevate" style="transition: all 0.3s; height: 42px; display: flex; align-items: center;">
+                <i class="fas fa-home me-2 text-primary"></i> Início
+            </a>
+        </div>
     </div>
 </nav>
 

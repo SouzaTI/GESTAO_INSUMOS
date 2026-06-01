@@ -159,11 +159,11 @@ $resultado_vencer = $conn->query("SELECT p.descricao,
         </div>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="table-light" style="background-color: #f8f9fa; color: #212529;">
                     <tr>
                         <th class="ps-4">Item / Insumo</th>
-                        <th class="text-center">Quantidade</th>
-                        <th>Vencimento</th>
+                        <th class="text-center">Qtd.</th>
+                        <th>Data de Vencimento</th>
                         <th>Ação Recomendada</th>
                     </tr>
                 </thead>

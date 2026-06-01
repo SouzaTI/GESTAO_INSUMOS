@@ -1,10 +1,7 @@
 <?php
-// Substituímos a consulta direta ao banco pela nossa função de segurança
 require_once __DIR__ . '/verificar_permissoes.php'; 
-
 $pagina = basename($_SERVER['PHP_SELF']);
 
-// 1. Define quem pode gerenciar usuários (Super-Admin do GLPI ou permissão específica)
 $pode_gerenciar_usuarios = temAcesso('usuarios'); 
 ?>
 <div class="sidebar">
@@ -26,28 +23,51 @@ $pode_gerenciar_usuarios = temAcesso('usuarios');
                 </a>
             <?php endif; ?>
 
-            <?php if (temAcesso('comprar')): ?>
-                <a href="requisicoes.php" class="nav-link <?= ($pagina == 'requisicoes.php') ? 'active' : '' ?>">
-                    <i class="fas fa-inbox"></i> Requisições 
+            <div class="mt-3 border-top border-secondary pt-2 opacity-75">
+                <small class="text-uppercase ms-3" style="font-size: 0.6rem; color: #a5d8ff;">Fluxo de Materiais</small>
+                
+                <a href="solicitar.php" class="nav-link <?= ($pagina == 'solicitar.php') ? 'active' : '' ?>">
+                    <i class="fas fa-file-signature"></i> Solicitar Insumo
                 </a>
-                <a href="acompanhamento.php" class="nav-link <?= ($pagina == 'acompanhamento.php') ? 'active' : '' ?>">
-                    <i class="fas fa-tasks"></i> Acompanhamento
-                </a>
-            <?php endif; ?>
 
-            <?php if ($pode_gerenciar_usuarios): ?>
-                <div class="mt-4 border-top border-secondary pt-3 opacity-75">
-                    <small class="text-uppercase ms-3" style="font-size: 0.65rem; color: #ffffff;">Controle de Acessos</small>
-                    <a href="usuarios_gestao.php" class="nav-link <?= ($pagina == 'usuarios_gestao.php') ? 'active' : '' ?>" style="color: #ff8e8e;">
-                        <i class="fas fa-users-cog"></i> Gestão de Usuários
+                <?php if (temAcesso('aprovar_insumo') || $pode_gerenciar_usuarios): ?>
+                    <a href="painel_aprovacao.php" class="nav-link <?= ($pagina == 'painel_aprovacao.php') ? 'active' : '' ?>">
+                        <i class="fas fa-user-check"></i> Portal do Gestor
                     </a>
-                    <a href="logs.php" class="nav-link <?= ($pagina == 'logs.php') ? 'active' : '' ?>" style="color: #a5d8ff;">
-                        <i class="fas fa-history"></i> Logs do Sistema
+                <?php endif; ?>
+
+                <?php if (temAcesso('triagem_insumo') || $pode_gerenciar_usuarios): ?>
+                    <a href="painel_almoxarifado.php" class="nav-link <?= ($pagina == 'painel_almoxarifado.php') ? 'active' : '' ?>">
+                        <i class="fas fa-warehouse"></i> Triagem Almox.
+                    </a>
+                <?php endif; ?>
+            </div>
+
+            <?php if (temAcesso('comprar')): ?>
+                <div class="mt-3 border-top border-secondary pt-2 opacity-75">
+                    <small class="text-uppercase ms-3" style="font-size: 0.6rem; color: #ffffff;">Suprimentos</small>
+                    <a href="requisicoes.php" class="nav-link <?= ($pagina == 'requisicoes.php') ? 'active' : '' ?>">
+                        <i class="fas fa-inbox"></i> Requisições 
+                    </a>
+                    <a href="acompanhamento.php" class="nav-link <?= ($pagina == 'acompanhamento.php') ? 'active' : '' ?>">
+                        <i class="fas fa-tasks"></i> Acompanhamento
                     </a>
                 </div>
             <?php endif; ?>
 
-            <div class="mt-5 border-top border-secondary pt-3">
+            <?php if ($pode_gerenciar_usuarios): ?>
+                <div class="mt-4 border-top border-secondary pt-3 opacity-75">
+                    <small class="text-uppercase ms-3" style="font-size: 0.65rem; color: #ffffff;">Configurações</small>
+                    <a href="usuarios_gestao.php" class="nav-link <?= ($pagina == 'usuarios_gestao.php') ? 'active' : '' ?>" style="color: #ff8e8e;">
+                        <i class="fas fa-users-cog"></i> Usuários
+                    </a>
+                    <a href="logs.php" class="nav-link <?= ($pagina == 'logs.php') ? 'active' : '' ?>" style="color: #a5d8ff;">
+                        <i class="fas fa-history"></i> Logs
+                    </a>
+                </div>
+            <?php endif; ?>
+
+            <div class="mt-auto border-top border-secondary pt-3">
                 <a href="logout.php" class="nav-link text-warning">
                     <i class="fas fa-power-off"></i> Sair
                 </a>

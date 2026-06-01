@@ -75,11 +75,16 @@
     border-radius: 0 0 12px 12px;
 }
 
-/* Deixa o cabeçalho da tabela fixo no topo ao rolar */
+/* Cabeçalho fixo da tabela (compatível com table-responsive) */
+.table thead tr {
+    background-color: #f8f9fa;
+}
+
 .table thead th {
     position: sticky;
     top: 0;
-    z-index: 10;
-    background-color: #212529 !important; /* Cor dark do Bootstrap */
-    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.4);
+    z-index: 5;
+    background-color: #f8f9fa;
+    color: #212529;
+    box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.15);
 }

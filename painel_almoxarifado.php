@@ -10,9 +10,12 @@ $operador_nome = $_SESSION['usuario_nome'];
 $operador_id = $_SESSION['usuario_id'];
 
 /** * Busca pedidos aprovados vinculando ao banco do GLPI */
-$query = "SELECT r.*, u.firstname as nome_gestor 
+$query = "SELECT r.*, 
+                 u_solic.firstname as nome_gestor_solicitado, 
+                 u_real.firstname as nome_quem_aprovou
           FROM requisicoes r
-          LEFT JOIN glpidb_att.glpi_users u ON r.aprovador_id = u.id
+          LEFT JOIN glpidb_att.glpi_users u_solic ON r.aprovador_id = u_solic.id
+          LEFT JOIN glpidb_att.glpi_users u_real ON r.finalizado_por_id = u_real.id
           WHERE r.status_pedido = 'APROVADO_GESTOR' 
           ORDER BY r.data_criacao ASC";
 $pedidos_vips = $conn->query($query);
@@ -34,16 +37,56 @@ $pedidos_vips = $conn->query($query);
         .btn-acao { transition: all 0.2s; }
         .btn-acao:hover { transform: scale(1.05); }
         .barra-operador { background: #fff; border-bottom: 2px solid #eee; padding: 10px 20px; margin-bottom: 20px; }
+
+        /* Animação suave para o indicador de status ativo */
+        .animate-ping {
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        @keyframes ping {
+            75%, 100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
+
+        .animate-ping {
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        @keyframes ping {
+            75%, 100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
+        .hover-elevate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1) !important;
+        }
+
     </style>
 </head>
 <body class="p-0">
 
-<div class="barra-operador d-flex justify-content-between align-items-center">
-    <div class="small text-muted">
-        <i class="fas fa-user-shield me-1"></i> Operador Logado: <strong><?php echo $operador_nome; ?></strong>
+<div class="barra-operador d-flex justify-content-between align-items-center px-4 py-3 mb-4 shadow-sm" style="background: #ffffff; border-bottom: 2px solid #e3e6f0; border-radius: 0 0 15px 15px;">
+    
+    <div class="d-flex align-items-center">
+        <div class="bg-light text-primary rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" style="width: 45px; height: 45px; border: 1px solid #d1d3e2;">
+            <i class="fas fa-user-cog fa-lg"></i>
+        </div>
+        <div>
+            <small class="text-uppercase text-muted fw-bold d-block" style="font-size: 0.65rem; letter-spacing: 1px; line-height: 1;">Responsável Técnico</small>
+            <span class="text-dark fw-bold" style="font-size: 1rem;"><?php echo $operador_nome; ?></span>
+        </div>
     </div>
-    <div class="text-success small fw-bold">
-        <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> SISTEMA PRONTO PARA BAIXAS
+
+    <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center bg-light px-3 py-2 rounded-pill border shadow-sm me-2">
+            <div class="position-relative me-2">
+                <i class="fas fa-circle text-success" style="font-size: 0.6rem;"></i>
+                <span class="position-absolute top-50 start-50 translate-middle badge border border-light rounded-circle bg-success p-1 animate-ping" style="opacity: 0.4;"></span>
+            </div>
+            <span class="small fw-bold text-uppercase text-dark" style="font-size: 0.7rem; letter-spacing: 0.5px;">
+                Almoxarifado: <span class="text-success">Ativo</span>
+            </span>
+        </div>
+
+        <a href="dashboard.php" class="btn btn-white shadow-sm border rounded-pill px-4 fw-bold text-dark hover-elevate" style="transition: all 0.3s;">
+            <i class="fas fa-home me-2 text-primary"></i> Início
+        </a>
     </div>
 </div>
 
@@ -79,10 +122,13 @@ $pedidos_vips = $conn->query($query);
                                 <div class="small text-uppercase text-secondary"><?php echo $row['setor']; ?></div>
                             </td>
                             <td>
-                                <span class="badge badge-gestor">
-                                    <i class="fas fa-user-check me-1"></i> 
-                                    <?php echo $row['nome_gestor'] ?? 'Gestor Externo'; ?>
-                                </span>
+                                <?php if (!empty($row['finalizado_por_id']) && $row['finalizado_por_id'] != $row['aprovador_id']): ?>
+                                    <div class="small text-primary fw-bold" style="font-size: 0.75rem;">
+                                        <i class="fas fa-check-double me-1"></i> 
+                                        Aprovado por: <?php echo $row['nome_quem_aprovou']; ?> (Admin)
+                                    </div>
+                                <?php endif; ?>
+
                                 <div class="mt-1" style="font-size: 0.7rem; color: #666;">
                                     Motivo: <?php echo htmlspecialchars($row['motivo_solicitacao']); ?>
                                 </div>

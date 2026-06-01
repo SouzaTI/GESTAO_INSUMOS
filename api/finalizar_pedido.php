@@ -1,74 +1,60 @@
 <?php
+session_start();
 require_once __DIR__ . '/../config/db.php';
 header('Content-Type: application/json');
 
-if (!isset($_POST['id'])) {
-    echo json_encode(['success' => false, 'message' => 'ID não fornecido']);
+if (!isset($_SESSION['usuario_id'])) {
+    echo json_encode(['success' => false, 'message' => 'Sessão expirada.']);
     exit;
 }
 
-$id = (int)$_POST['id'];
+$id = (int)($_POST['id'] ?? 0);
+$status_acao = $_POST['status'] ?? '';
+$retirado_por = $_POST['retirado_por'] ?? 'Almoxarifado';
+$operador_id = $_SESSION['usuario_id'];
+$operador_nome = $_SESSION['usuario_nome'];
+
 $conn->begin_transaction();
 
 try {
-    // 1. Busca os dados do pedido para identificar o fornecedor
-    $pedido_query = $conn->query("SELECT fornecedor FROM pedidos_compra WHERE id = $id");
-    $pedido_dados = $pedido_query->fetch_assoc();
-    $eh_interno = ($pedido_dados['fornecedor'] === 'COMERCIAL SOUZA ATACADO');
-
-    // 2. Atualiza o status do pedido para FINALIZADO
-    $stmt = $conn->prepare("UPDATE pedidos_compra SET status = 'FINALIZADO', data_finalizacao = NOW() WHERE id = ?");
-    $stmt->bind_param("i", $id);
+    // 1. Atualiza a Requisição principal
+    $stmt = $conn->prepare("UPDATE requisicoes SET status_pedido = ?, retirado_por = ?, data_fechamento = NOW() WHERE id = ?");
+    $stmt->bind_param("ssi", $status_acao, $retirado_por, $id);
     $stmt->execute();
 
-    // 3. Busca os itens da movimentação
-    $sql_itens = "SELECT produto_id, quantidade, observacao, lote_vencimento FROM movimentacoes WHERE pedido_id = $id";
-    $itens = $conn->query($sql_itens);
+    if ($status_acao === 'FINALIZADO') {
+        // 2. BUSCA O ID REAL DO PRODUTO: Cruza o nome que está na requisição com a tabela de produtos
+        $sql_itens = "SELECT ri.produto_nome, ri.quantidade, p.id as produto_id_real 
+                      FROM requisicao_itens ri
+                      LEFT JOIN produtos p ON ri.produto_nome = p.nome_produto 
+                      WHERE ri.requisicao_id = ?";
+        
+        $stmt_itens = $conn->prepare($sql_itens);
+        $stmt_itens->bind_param("i", $id);
+        $stmt_itens->execute();
+        $itens = $stmt_itens->get_result();
 
-    while ($row = $itens->fetch_assoc()) {
-        $prod_id = $row['produto_id'];
-        $qtd = $row['quantidade'];
-        $lote_info = $row['lote_vencimento'] ?: 'LOTE-PED-'.$id;
+        while ($row = $itens->fetch_assoc()) {
+            $prod_id = $row['produto_id_real'];
+            $qtd_negativa = $row['quantidade'] * -1;
+            $lote_nome = 'REQ-'.$id;
 
-        if ($eh_interno) {
-            // --- LÓGICA DE BAIXA (SAÍDA) ---
-            // Para retirada interna, não criamos um lote novo com saldo positivo, 
-            // registramos a saída nos lotes existentes ou apenas marcamos a movimentação.
-            // Aqui, vamos inserir um registro no estoque com quantidade NEGATIVA para abater o saldo
-            $sql_baixa = "INSERT INTO lotes (produto_id, numero_lote, quantidade_inicial, quantidade_atual, data_entrada) 
-                          VALUES (?, ?, ?, ?, NOW())";
-            
-            $qtd_negativa = $qtd * -1; // Transforma 10 em -10
-            $stmt_baixa = $conn->prepare($sql_baixa);
-            // quantidade_inicial e quantidade_atual ficam negativas para o cálculo de saldo bater
-            $stmt_baixa->bind_param("isdd", $prod_id, $lote_info, $qtd_negativa, $qtd_negativa);
+            // Se o produto não for encontrado na tabela 'produtos', gera erro de integridade
+            if (empty($prod_id)) {
+                throw new Exception("Produto '".$row['produto_nome']."' não cadastrado no estoque central.");
+            }
+
+            // 3. INSERE NO ESTOQUE (LOTES): Agora com o produto_id correto
+            $stmt_baixa = $conn->prepare("INSERT INTO lotes (produto_id, numero_lote, quantidade_atual, data_entrada) VALUES (?, ?, ?, NOW())");
+            $stmt_baixa->bind_param("isd", $prod_id, $lote_nome, $qtd_negativa);
             $stmt_baixa->execute();
-
-        } else {
-            // --- LÓGICA DE ENTRADA (COMPRA NORMAL) ---
-            $sql_lote = "INSERT INTO lotes (produto_id, numero_lote, quantidade_inicial, quantidade_atual, data_entrada) 
-                         VALUES (?, ?, ?, ?, NOW())";
-            
-            $stmt_lote = $conn->prepare($sql_lote);
-            $stmt_lote->bind_param("isdd", $prod_id, $lote_info, $qtd, $qtd);
-            $stmt_lote->execute();
         }
     }
 
-    // 4. REGISTRO DE LOG PERSONALIZADO
-    $acao_txt = $eh_interno ? "Entregue (Baixa)" : "Recebido (Entrada)";
-    $log_desc = "Pedido #$id $acao_txt. Estoque atualizado automaticamente.";
-    
-    $stmt_log = $conn->prepare("INSERT INTO logs_sistema (usuario_id, usuario_nome, tabela_afetada, registro_id, acao, descricao_log) VALUES (?, ?, 'pedidos_compra', ?, 'FINALIZAR', ?)");
-    $u_id = $_SESSION['usuario_id'];
-    $u_nome = $_SESSION['usuario_nome'];
-    $stmt_log->bind_param("isis", $u_id, $u_nome, $id, $log_desc);
-    $stmt_log->execute();
-
     $conn->commit();
-    echo json_encode(['success' => true, 'is_interno' => $eh_interno]);
+    echo json_encode(['success' => true]);
 
 } catch (Exception $e) {
     $conn->rollback();
-    echo json_encode(['success' => false, 'message' => "Erro ao finalizar: " . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }

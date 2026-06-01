@@ -1,23 +1,36 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
+session_start(); // Essencial para capturar quem está logado
+
 header('Content-Type: application/json');
 
-// Verifica se os dados foram enviados por POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $id = (int)($_POST['id'] ?? 0);
-    $status = $_POST['status'] ?? ''; // Pode ser 'APROVADO_GESTOR' ou 'REJEITADO'
-    $justificativa = $_POST['justificativa'] ?? ''; // Nova variável
+    // 1. Captura o ID de quem está clicando no botão agora
+    $id_usuario_real = $_SESSION['glpi_id'] ?? $_SESSION['usuario_id'] ?? 0;
 
-    // Validação básica para evitar erros de banco
+    $id = (int)($_POST['id'] ?? 0);
+    $status = $_POST['status'] ?? ''; 
+    $justificativa = $_POST['justificativa'] ?? '';
+
+    // Validação básica
     if ($id <= 0 || !in_array($status, ['APROVADO_GESTOR', 'REJEITADO'])) {
-        echo json_encode(['success' => false, 'message' => 'Dados inválidos ou status incorreto.']);
+        echo json_encode(['success' => false, 'message' => 'Dados inválidos.']);
         exit;
     }
 
     try {
-        // Atualiza o status da requisição
-        $stmt = $conn->prepare("UPDATE requisicoes SET status_pedido = ?, justificativa_gestor = ? WHERE id = ?");
-        $stmt->bind_param("ssi", $status, $justificativa, $id);
+        /**
+         * 2. GRAVAÇÃO DE AUDITORIA:
+         * Mantemos o 'aprovador_id' original (quem devia aprovar)
+         * E gravamos no 'finalizado_por_id' quem aprovou de fato
+         */
+        $stmt = $conn->prepare("UPDATE requisicoes SET 
+                                status_pedido = ?, 
+                                justificativa_gestor = ?, 
+                                finalizado_por_id = ? 
+                                WHERE id = ?");
+        
+        $stmt->bind_param("ssii", $status, $justificativa, $id_usuario_real, $id);
 
         if ($stmt->execute()) {
             echo json_encode(['success' => true]);
@@ -28,5 +41,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 } else {
-    echo json_encode(['success' => false, 'message' => 'Método de requisição não permitido.']);
+    echo json_encode(['success' => false, 'message' => 'Método não permitido.']);
 }
