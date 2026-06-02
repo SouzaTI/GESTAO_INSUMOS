@@ -2,9 +2,32 @@
 // 1. CONEXÕES
 require_once __DIR__ . '/config/db.php'; // Sua conexão original $conn
 
-// Conexão PDO temporária para o GLPI (Porta 3307)
+// Carrega o arquivo .env existente na raiz para pegar as credenciais do GLPI
+$envPath = __DIR__ . '/.env';
+
+if (file_exists($envPath)) {
+    $envVariables = parse_ini_file($envPath);
+    
+    $glpi_host = $envVariables['GLPI_DB_HOST'] ?? '127.0.0.1:3307';
+    $glpi_name = $envVariables['GLPI_DB_NAME'] ?? 'glpidb_att';
+    $glpi_user = $envVariables['GLPI_DB_USER'] ?? 'root';
+    $glpi_pass = $envVariables['GLPI_DB_PASS'] ?? '';
+} else {
+    die("Erro crítico: Arquivo .env não encontrado para carregar os dados do GLPI.");
+}
+
+// Conexão PDO segura para o GLPI
 try {
-    $glpi_pdo = new PDO("mysql:host=127.0.0.1;port=3307;dbname=glpidb_att;charset=utf8mb4", 'root', '');
+    // Isola a porta dinamicamente (:3307) caso esteja junto no HOST do .env
+    if (strpos($glpi_host, ':') !== false) {
+        list($realHost, $port) = explode(':', $glpi_host);
+        $glpi_dsn = "mysql:host=$realHost;port=$port;dbname=$glpi_name;charset=utf8mb4";
+    } else {
+        $glpi_dsn = "mysql:host=$glpi_host;dbname=$glpi_name;charset=utf8mb4";
+    }
+
+    $glpi_pdo = new PDO($glpi_dsn, $glpi_user, $glpi_pass);
+    $glpi_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     die("Erro ao conectar no banco do GLPI: " . $e->getMessage());
 }
